@@ -129,6 +129,22 @@ if(NOT DEFINED ASCEND_DRIVER_PATH)
     set(ASCEND_DRIVER_PATH "/usr/local/Ascend/driver")
 endif()
 
+# The driver include trees are optional on this side: the CANN include
+# directory already ships driver/*.h. When the driver package is installed
+# root-only (e.g. /usr/local/Ascend/driver/kernel is dr-x------ root:root),
+# passing such a path to -I makes the compiler fail on the option itself,
+# so only keep the entries that are actually readable.
+set(SGL_DRIVER_INCLUDE_DIRS)
+foreach(_sgl_driver_inc IN ITEMS
+        "${ASCEND_DRIVER_PATH}/include"
+        "${ASCEND_DRIVER_PATH}/kernel/inc")
+    if(EXISTS "${_sgl_driver_inc}")
+        list(APPEND SGL_DRIVER_INCLUDE_DIRS "${_sgl_driver_inc}")
+    else()
+        message(STATUS "Skipping missing/unreadable driver include dir: ${_sgl_driver_inc}")
+    endif()
+endforeach()
+
 # kernel side files without workspace
 set(NO_WORKSPACE_KERNEL_SRCS
     ${PROJECT_OP_SRC_BASE}/helloworld/op_kernel/kernel_helloworld.cpp
@@ -373,6 +389,18 @@ target_link_directories(${OP_PLUGIN_NAME} PRIVATE
         ${TORCH_NPU_DIR}/lib
 )
 
+# CANN >= 9.2 moved the GE error codes to graph/error_codes.h and kept
+# graph/ge_error_codes.h as a compatibility header. That compatibility header
+# uses the very same include guard as the older copy bundled in torch_npu
+# (INC_EXTERNAL_GRAPH_GE_ERROR_CODES_H_), and torch_npu's own graph/operator.h
+# pulls its bundled copy through a relative include, so -I ordering cannot
+# settle it. Pre-including the CANN header makes its definitions win and lets
+# the guard drop the bundled copy, which otherwise redefines ge::GRAPH_*.
+if(EXISTS "${ASCEND_INCLUDE_DIR}/graph/ge_error_codes.h")
+    target_compile_options(${OP_PLUGIN_NAME} PRIVATE
+        "-include" "${ASCEND_INCLUDE_DIR}/graph/ge_error_codes.h")
+endif()
+
 # Enable OpenMP for the pure-host metadata scheduler (parallel per-row cache build).
 target_compile_options(${OP_PLUGIN_NAME} PRIVATE -fopenmp)
 target_link_libraries(${OP_PLUGIN_NAME} PRIVATE gomp)
@@ -402,6 +430,5 @@ target_include_directories(${OP_PLUGIN_NAME} PRIVATE
         ${TORCH_NPU_DIR}/include
         ${ASCEND_INCLUDE_DIR}/experiment/platform
         ${ASCEND_INCLUDE_DIR}/experiment/runtime
-        ${ASCEND_DRIVER_PATH}/include
-        ${ASCEND_DRIVER_PATH}/kernel/inc
+        ${SGL_DRIVER_INCLUDE_DIRS}
 )

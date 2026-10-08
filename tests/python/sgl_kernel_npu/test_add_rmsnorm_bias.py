@@ -39,8 +39,8 @@ def test_add_rmsnorm_bias():
         input,
         residual,
         weight,
+        bias,
         1e-6,
-        norm_bias=bias,
         quant_scale=None,
         quant_offset=None,
     )
@@ -76,8 +76,8 @@ def test_add_rmsnorm_bias():
         input,
         residual,
         weight,
+        bias,
         1e-6,
-        norm_bias=bias,
         quant_scale=quant_scale,
         quant_offset=quant_offset,
     )
