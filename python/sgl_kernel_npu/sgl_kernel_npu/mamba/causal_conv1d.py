@@ -10,6 +10,7 @@ from typing import Optional, Union
 import torch
 import torch.nn.functional as F
 import triton
+from sgl_kernel_npu.utils.triton_utils import get_device_properties
 import triton.language as tl
 import triton.language.extra.cann.extension as al
 
@@ -471,6 +472,14 @@ def _causal_conv1d_update_kernel_npu_tiled(
             tl.store(o_ptrs, acc, mask=lane_active & mask_w)
 
 
+# Tiling knobs for the tiled update kernel (see
+# 1008test/perf_02_causal_conv1d_update/notes.md).  None keeps the built-in
+# heuristic; the benches override them to sweep BLOCK_N / B_TILE / T_CHUNK.
+_BLOCK_N = None
+_B_TILE = None
+_T_CHUNK = None
+
+
 def causal_conv1d_update_v2(
     x: torch.Tensor,
     conv_state: torch.Tensor,
@@ -575,28 +584,29 @@ def causal_conv1d_update_v2(
         eff_state_len = width - 1
     np2_statelen = triton.next_power_of_2(eff_state_len)
 
-    # -------- tiling heuristic--------
-    # keep program count around ~[80..160]
-    # vector core 40
-    # TODO: use driver to get the vector core num
-    CORE_HINT = 40
-    # channel tile: 512 when dim large (reduce tasks), else 256
-    block_n = 512 if dim >= 512 else 256
-    g = triton.cdiv(dim, block_n)
-    target = 2 * CORE_HINT  # ~80
-    b_tile_raw = max(1, (batch * g + target - 1) // target)
-    # clamp to small set
-    if b_tile_raw <= 1:
-        b_tile = 1
-    elif b_tile_raw <= 2:
-        b_tile = 2
-    elif b_tile_raw <= 4:
-        b_tile = 4
+    # -------- tiling heuristic --------
+    # Measured on Ascend950PR (56 vector cores), B=32/T=4/D=4096:
+    #   * one program per row with the whole channel width, B_TILE=1 -> 8.7us
+    #     (previous BLOCK_N=512/B_TILE=4 heuristic -> 24.1us);
+    #   * finer channel splits pay a large per-program setup cost
+    #     (BLOCK_N=128 -> 31us), so they are only used when the rows alone
+    #     cannot keep the device busy (B=1 -> BLOCK_N=128 -> 4.2us);
+    #   * B_TILE>1 serialises several rows inside one program and never won.
+    cores = get_device_properties()[1]
+    if _BLOCK_N is not None:
+        block_n = _BLOCK_N
     else:
-        b_tile = 8
-
-    # token chunk based on block_n (32KB UB idea); conservative
-    t_chunk = 1 if block_n == 512 else 48
+        block_n = min(triton.next_power_of_2(dim), 4096)
+        if 2 * batch * triton.cdiv(dim, block_n) < cores:
+            wanted_blocks = max(1, triton.cdiv(cores, max(batch, 1)))
+            block_n = max(
+                128, triton.next_power_of_2(triton.cdiv(dim, wanted_blocks))
+            )
+    b_tile = 1 if _B_TILE is None else _B_TILE
+    # T_CHUNK multiplies the UB footprint of the state copy loops
+    # (T_CHUNK x BLOCK_N elements); 48 overflows UB for BLOCK_N >= 2048, and
+    # T_CHUNK=1 also measured fastest at BLOCK_N=512.
+    t_chunk = 1 if _T_CHUNK is None else _T_CHUNK
 
     def grid(META):
         return (

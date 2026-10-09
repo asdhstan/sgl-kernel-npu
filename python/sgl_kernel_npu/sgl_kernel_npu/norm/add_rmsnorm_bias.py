@@ -77,6 +77,12 @@ def add_rmsnorm_bias_kernel(
         input_offsets += row_step * hidden_size
 
 
+# Quant tile width for the block-wise int8 store (tuning knob used by
+# 1008test/perf_04_add_rmsnorm_bias/bench.py).  The row itself is still handled
+# full width; this only slices the buffered row for the quantised store.
+_COL_BLOCK_SIZE = 8192
+
+
 def add_rmsnorm_bias(
     input,
     residual,
@@ -91,7 +97,9 @@ def add_rmsnorm_bias(
     batch_size = input.shape[0]
     hidden_size = input.shape[1]
     BLOCK_SIZE = triton.next_power_of_2(hidden_size)
-    COL_BLOCK_SIZE = 2048
+    # Quant tile width.  The whole row must stay within the unified buffer, so
+    # this stays a tile; see 1008test/perf_04_add_rmsnorm_bias/notes.md.
+    COL_BLOCK_SIZE = _COL_BLOCK_SIZE
     n_rows = min(batch_size, num_vectorcore)
 
     SCALE = quant_scale is not None

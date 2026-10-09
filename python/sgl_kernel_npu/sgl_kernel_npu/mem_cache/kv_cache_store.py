@@ -2,6 +2,14 @@ import torch
 import triton
 import triton.language as tl
 
+# Tuning knobs (see 1008test/perf_03_kv_cache_store/notes.md).
+# The commit is a pure DMA copy, so performance is set by the program
+# granularity: one program used to move a single (row, 128-element, K-or-V)
+# tile.  _BLOCK/_ROWS_PER_PROG let one program copy several whole rows and both
+# K and V, which cuts the launched program count by ~16x at the tuned setting.
+_BLOCK = 1024
+_ROWS_PER_PROG = 2
+
 
 @triton.jit
 def _store_kv_cache_prefix_valid_npu_kernel(
@@ -15,45 +23,47 @@ def _store_kv_cache_prefix_valid_npu_kernel(
     dst_v_row_stride,
     src_k_row_stride,
     src_v_row_stride,
+    num_rows,
     K_ROW_DIM: tl.constexpr,
     V_ROW_DIM: tl.constexpr,
     PREFIX_WIDTH: tl.constexpr,
     BLOCK: tl.constexpr,
+    ROWS_PER_PROG: tl.constexpr,
+    NUM_BLOCKS: tl.constexpr,
 ):
-    src_row = tl.program_id(0)
-    block_id = tl.program_id(1)
-    kv_id = tl.program_id(2)
-
-    batch_id = src_row // PREFIX_WIDTH
-    row_in_batch = src_row % PREFIX_WIDTH
-    active = row_in_batch < tl.load(commit_lens_ptr + batch_id)
-    loc = tl.load(loc_ptr + src_row, mask=active, other=0).to(tl.int64)
-    offsets = block_id * BLOCK + tl.arange(0, BLOCK)
-
-    if kv_id == 0:
-        mask = active & (offsets < K_ROW_DIM)
-        values = tl.load(
-            src_k_ptr + src_row * src_k_row_stride + offsets,
-            mask=mask,
-            other=0,
-        )
-        tl.store(
-            dst_k_ptr + loc * dst_k_row_stride + offsets,
-            values,
-            mask=mask,
-        )
-    else:
-        mask = active & (offsets < V_ROW_DIM)
-        values = tl.load(
-            src_v_ptr + src_row * src_v_row_stride + offsets,
-            mask=mask,
-            other=0,
-        )
-        tl.store(
-            dst_v_ptr + loc * dst_v_row_stride + offsets,
-            values,
-            mask=mask,
-        )
+    pid = tl.program_id(0)
+    chunk = tl.arange(0, BLOCK)
+    for r in range(ROWS_PER_PROG):
+        src_row = pid * ROWS_PER_PROG + r
+        if src_row < num_rows:
+            batch_id = src_row // PREFIX_WIDTH
+            row_in_batch = src_row % PREFIX_WIDTH
+            active = row_in_batch < tl.load(commit_lens_ptr + batch_id)
+            loc = tl.load(loc_ptr + src_row, mask=active, other=0).to(tl.int64)
+            for block_id in range(NUM_BLOCKS):
+                offsets = block_id * BLOCK + chunk
+                k_mask = active & (offsets < K_ROW_DIM)
+                k_values = tl.load(
+                    src_k_ptr + src_row * src_k_row_stride + offsets,
+                    mask=k_mask,
+                    other=0,
+                )
+                tl.store(
+                    dst_k_ptr + loc * dst_k_row_stride + offsets,
+                    k_values,
+                    mask=k_mask,
+                )
+                v_mask = active & (offsets < V_ROW_DIM)
+                v_values = tl.load(
+                    src_v_ptr + src_row * src_v_row_stride + offsets,
+                    mask=v_mask,
+                    other=0,
+                )
+                tl.store(
+                    dst_v_ptr + loc * dst_v_row_stride + offsets,
+                    v_values,
+                    mask=v_mask,
+                )
 
 
 def store_kv_cache_prefix_valid_npu_triton(
@@ -134,12 +144,10 @@ def store_kv_cache_prefix_valid_npu_triton(
     prefix_width = loc_2d.shape[1]
     k_row_dim = src_k.shape[1] * src_k.shape[2]
     v_row_dim = src_v.shape[1] * src_v.shape[2]
-    block = 128
-    grid = (
-        num_rows,
-        triton.cdiv(max(k_row_dim, v_row_dim), block),
-        2,
-    )
+    block = _BLOCK
+    rows_per_prog = _ROWS_PER_PROG
+    num_blocks = triton.cdiv(max(k_row_dim, v_row_dim), block)
+    grid = (triton.cdiv(num_rows, rows_per_prog),)
     _store_kv_cache_prefix_valid_npu_kernel[grid](
         dst_k,
         dst_v,
@@ -151,8 +159,11 @@ def store_kv_cache_prefix_valid_npu_triton(
         dst_v.stride(0),
         src_k.stride(0),
         src_v.stride(0),
+        num_rows,
         K_ROW_DIM=k_row_dim,
         V_ROW_DIM=v_row_dim,
         PREFIX_WIDTH=prefix_width,
         BLOCK=block,
+        ROWS_PER_PROG=rows_per_prog,
+        NUM_BLOCKS=num_blocks,
     )

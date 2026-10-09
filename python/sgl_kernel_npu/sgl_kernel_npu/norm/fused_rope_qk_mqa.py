@@ -1,6 +1,7 @@
 import torch
 import triton
 import triton.language as tl
+import triton.language.extra.cann.extension as al
 
 
 @triton.jit
@@ -34,55 +35,65 @@ def fused_rope_qk_mqa_kernel_opt(
 
     # -------- rotary indices
     d = tl.arange(0, D_ROPE // 2)
-    if IS_NEOX_STYLE:
-        idx_even = d
-        idx_odd = d + D_ROPE // 2
-    else:
-        idx_even = d * 2
-        idx_odd = d * 2 + 1
+    d_all = tl.arange(0, D_ROPE)
 
     # cos / sin (shared across all heads for this position)
     cos = tl.load(cos_sin_ptr + pid_t * stride_ct + d * stride_cd)
     sin = tl.load(cos_sin_ptr + pid_t * stride_ct + (d + D_ROPE // 2) * stride_cd)
 
-    # ================= Q (all Hq heads at once) =================
     head_offs = tl.arange(0, Hq)
+    kh_offs = tl.arange(0, Hk)
     q_base = query_ptr + pid_t * stride_qt
+    k_base = key_ptr + pid_t * stride_kt
+    oq_base = out_q_ptr + pid_t * stride_oqt
+    ok_base = out_k_ptr + pid_t * stride_okt
 
-    q1 = tl.load(
-        q_base + head_offs[:, None] * stride_qh + idx_even[None, :] * stride_qd
-    )
-    q2 = tl.load(q_base + head_offs[:, None] * stride_qh + idx_odd[None, :] * stride_qd)
+    # One load per q/k covers the whole rotary span, so each head row is a full
+    # contiguous burst instead of two half-width halves, and only two per-head
+    # address tensors are materialised (was eight).  The even/odd split and the
+    # reassembly happen in registers.
+    q_all = tl.load(q_base + head_offs[:, None] * stride_qh + d_all[None, :] * stride_qd)
+    k_all = tl.load(k_base + kh_offs[:, None] * stride_kh + d_all[None, :] * stride_kd)
+
+    if IS_NEOX_STYLE:
+        q1 = al.extract_slice(q_all, (0, 0), (Hq, D_ROPE // 2), (1, 1))
+        q2 = al.extract_slice(q_all, (0, D_ROPE // 2), (Hq, D_ROPE // 2), (1, 1))
+        k1 = al.extract_slice(k_all, (0, 0), (Hk, D_ROPE // 2), (1, 1))
+        k2 = al.extract_slice(k_all, (0, D_ROPE // 2), (Hk, D_ROPE // 2), (1, 1))
+    else:
+        q1 = al.extract_slice(q_all, (0, 0), (Hq, D_ROPE // 2), (1, 2))
+        q2 = al.extract_slice(q_all, (0, 1), (Hq, D_ROPE // 2), (1, 2))
+        k1 = al.extract_slice(k_all, (0, 0), (Hk, D_ROPE // 2), (1, 2))
+        k2 = al.extract_slice(k_all, (0, 1), (Hk, D_ROPE // 2), (1, 2))
 
     q_out1 = (q1 * cos[None, :]) - (q2 * sin[None, :])
     q_out2 = (q1 * sin[None, :]) + (q2 * cos[None, :])
-
-    oq_base = out_q_ptr + pid_t * stride_oqt
-    tl.store(
-        oq_base + head_offs[:, None] * stride_oqh + idx_even[None, :] * stride_oqd,
-        q_out1,
-    )
-    tl.store(
-        oq_base + head_offs[:, None] * stride_oqh + idx_odd[None, :] * stride_oqd,
-        q_out2,
-    )
-
-    # ================= K (unique Hk key heads only) =================
-    kh_offs = tl.arange(0, Hk)
-    k_base = key_ptr + pid_t * stride_kt
-
-    k1 = tl.load(k_base + kh_offs[:, None] * stride_kh + idx_even[None, :] * stride_kd)
-    k2 = tl.load(k_base + kh_offs[:, None] * stride_kh + idx_odd[None, :] * stride_kd)
-
     k_out1 = (k1 * cos[None, :]) - (k2 * sin[None, :])
     k_out2 = (k1 * sin[None, :]) + (k2 * cos[None, :])
 
-    ok_base = out_k_ptr + pid_t * stride_okt
+    out_ty = query_ptr.dtype.element_ty
+    q_out = tl.zeros((Hq, D_ROPE), dtype=out_ty)
+    k_out = tl.zeros((Hk, D_ROPE), dtype=out_ty)
+    if IS_NEOX_STYLE:
+        q_out = al.insert_slice(q_out, q_out1, (0, 0), (Hq, D_ROPE // 2), (1, 1))
+        q_out = al.insert_slice(
+            q_out, q_out2, (0, D_ROPE // 2), (Hq, D_ROPE // 2), (1, 1)
+        )
+        k_out = al.insert_slice(k_out, k_out1, (0, 0), (Hk, D_ROPE // 2), (1, 1))
+        k_out = al.insert_slice(
+            k_out, k_out2, (0, D_ROPE // 2), (Hk, D_ROPE // 2), (1, 1)
+        )
+    else:
+        q_out = al.insert_slice(q_out, q_out1, (0, 0), (Hq, D_ROPE // 2), (1, 2))
+        q_out = al.insert_slice(q_out, q_out2, (0, 1), (Hq, D_ROPE // 2), (1, 2))
+        k_out = al.insert_slice(k_out, k_out1, (0, 0), (Hk, D_ROPE // 2), (1, 2))
+        k_out = al.insert_slice(k_out, k_out2, (0, 1), (Hk, D_ROPE // 2), (1, 2))
+
     tl.store(
-        ok_base + kh_offs[:, None] * stride_okh + idx_even[None, :] * stride_okd, k_out1
+        oq_base + head_offs[:, None] * stride_oqh + d_all[None, :] * stride_oqd, q_out
     )
     tl.store(
-        ok_base + kh_offs[:, None] * stride_okh + idx_odd[None, :] * stride_okd, k_out2
+        ok_base + kh_offs[:, None] * stride_okh + d_all[None, :] * stride_okd, k_out
     )
 
     # ================= pass-through (compile-time pruning) =================

@@ -4,6 +4,25 @@ import triton.language as tl
 from sgl_kernel_npu.utils.triton_utils import get_device_properties
 
 
+# Per-kernel tuning knobs for 1008test/perf_09 / perf_10 (no fusion; each kernel
+# is tuned on its own).
+#   _VOCAB_BLOCK_SIZE           shared block width of block_sums.  The reduction
+#                               wants wide blocks (4096: -19%) and the sampler
+#                               narrow ones (1024: -15%); tried decoupling them
+#                               (grouped 2-D tiles / register reshape / static
+#                               sub-loops) and all three variants regressed
+#                               (108us / 31us / 37us vs 16us) -- see perf_10
+#                               notes -- so 2048 stays the shared compromise.
+#   _BLOCK_SUM_OVERSUBSCRIPTION block-sum grid = min(cells, cores * this).
+#                               Oversubscribing keeps more loads in flight:
+#                               4 measured -7% (V=151552) / -6% (V=32000),
+#                               8 was worse.
+#   _BLOCK_SUM_PROGRAMS         explicit grid size, overrides the formula above.
+_VOCAB_BLOCK_SIZE = 2048
+_BLOCK_SUM_OVERSUBSCRIPTION = 4
+_BLOCK_SUM_PROGRAMS = None
+
+
 @triton.jit
 def _chain_rejection_accept_kernel(
     predicts,
@@ -287,12 +306,17 @@ def chain_speculative_sampling_triton(
     num_speculative_tokens = accept_index.shape[1]
     num_draft_prob_rows = draft_probs.shape[1]
     vocab_size = target_probs.shape[-1]
-    vocab_block_size = 2048
+    vocab_block_size = _VOCAB_BLOCK_SIZE
     num_vocab_blocks = triton.cdiv(vocab_size, vocab_block_size)
     pad_num_vocab_blocks = triton.next_power_of_2(num_vocab_blocks)
     _, num_vector_cores = get_device_properties()
     # Cap the launch to physical vector cores; each program strides over blocks.
-    num_block_sum_programs = min(batch_size * num_vocab_blocks, num_vector_cores)
+    num_block_sum_programs = min(
+        batch_size * num_vocab_blocks,
+        num_vector_cores * _BLOCK_SUM_OVERSUBSCRIPTION,
+    )
+    if _BLOCK_SUM_PROGRAMS is not None:
+        num_block_sum_programs = _BLOCK_SUM_PROGRAMS
 
     metadata = torch.empty(
         (batch_size, 3), dtype=torch.int64, device=target_probs.device
