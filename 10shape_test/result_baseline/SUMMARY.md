@@ -1,7 +1,7 @@
 # 10shape 基准性能汇总
 
-- 生成时间: 2026-10-12 22:29:30
-- git HEAD: `8aadd55`
+- 生成时间: 2026-10-12 22:55:40
+- git HEAD: `c48fbfb`
 - 指标: 每个 shape 的 `avg_time(us)`，取自 profiler `kernel_details.csv` 的 `Duration(us)` 均值
 - 测量协议: baseline 为 best-of-2 次运行的最小 `avg_time`
 
@@ -25,30 +25,45 @@
 
 | 尝试 | 时间 | 算子 | 方案 | 结论 |
 |------|------|------|------|------|
-| A1_autotune | 2026-10-12 21:58:35 | `argmax_prob` | ARGMAX_TUNE=autotune: BLOCK_V in {2048,4096,8192,16384,32768} x num_stages {1,2}, num_warps=1 | 基本无效: sum 1173 -> 1165 (-0.7%); 逐 shape -2.2%(B32_V32000) .. +0.3%(B32_V1024) |
-| A2_simt_only | 2026-10-12 21:59:20 | `argmax_prob` | compile_mode=simt_only, BLOCK_V=default(32KB/elem) | 无效(变慢 ~2x): sum 1173 -> 2423 (+106.5%) |
-| A3_simt_only+autotune | 2026-10-12 21:46:52 | `argmax_prob` | compile_mode=simt_only + ARGMAX_TUNE=autotune (BLOCK_V 2048..32768 x num_stages 1/2) | 无效(变慢 ~7.8x): sum 1173 -> 9109 (+676.3%) |
-| A4_grid2 | 2026-10-12 22:00:34 | `argmax_prob` | grid = min(2*vector_cores, B) (default is min(cores, B)) | 基本无效: sum 1173 -> 1183 (+0.8%)，说明瓶颈不在程序数/负载均衡 |
-| A5_grid4 | 2026-10-12 22:01:17 | `argmax_prob` | grid = min(4*vector_cores, B) | 基本无效: sum 1173 -> 1179 (+0.5%)，说明瓶颈不在程序数/负载均衡 |
+| A1_autotune | 2026-10-12 21:58:35 | `argmax_prob` | ARGMAX_TUNE=autotune: BLOCK_V in {2048,4096,8192,16384,32768} x num_stages {1,2}, num_warps=1 | 无效: sum 1173 -> 1165 (-0.7%) |
+| A2_simt_only | 2026-10-12 21:59:20 | `argmax_prob` | compile_mode=simt_only, BLOCK_V=default(32KB/elem) | 无效: sum 1173 -> 2423 (+106.5%) |
+| A3_simt_only+autotune | 2026-10-12 21:46:52 | `argmax_prob` | compile_mode=simt_only + ARGMAX_TUNE=autotune (BLOCK_V 2048..32768 x num_stages 1/2) | 无效: sum 1173 -> 9109 (+676.3%) |
+| A4_grid2 | 2026-10-12 22:00:34 | `argmax_prob` | grid = min(2*vector_cores, B) (default is min(cores, B)) | 无效: sum 1173 -> 1183 (+0.8%) |
+| A5_grid4 | 2026-10-12 22:01:17 | `argmax_prob` | grid = min(4*vector_cores, B) | 无效: sum 1173 -> 1179 (+0.5%) |
 | B1_tchunk8 | 2026-10-12 22:03:09 | `causal_conv1d_update` | T_CHUNK=8 (repo: 1 when BLOCK_N==512, else 48) | 有效: sum 94 -> 79 (-16.1%); 最好 -31.1%(N64_D4096_T8_W4) 最差 +13.5%(N1_D512_T1_W2) |
 | B2_tchunk16 | 2026-10-12 22:04:26 | `causal_conv1d_update` | T_CHUNK=16 | 有效: sum 94 -> 78 (-17.4%); 最好 -31.9%(N64_D4096_T8_W4) 最差 +18.6%(N1_D512_T1_W2) |
 | B3_tc512_16 | 2026-10-12 22:05:58 | `causal_conv1d_update` | T_CHUNK=16 only when BLOCK_N==512; BLOCK_N==256 keeps repo default 48 | 有效: sum 94 -> 78 (-16.8%); 最好 -32.2%(N64_D4096_T8_W4) 最差 +18.2%(N1_D512_T1_W2) |
 | B4_tc512_32 | 2026-10-12 22:07:00 | `causal_conv1d_update` | T_CHUNK=32 when BLOCK_N==512 | 有效: sum 94 -> 82 (-13.2%); 最好 -26.8%(N64_D4096_T8_W4) 最差 +35.8%(N1_D512_T1_W2) |
-| B5_tc512_64 | 2026-10-12 22:08:11 | `causal_conv1d_update` | T_CHUNK=64 when BLOCK_N==512 | 有效但弱: sum 94 -> 92 (-2.2%) |
+| B5_tc512_64 | 2026-10-12 22:08:11 | `causal_conv1d_update` | T_CHUNK=64 when BLOCK_N==512 | 有效: sum 94 -> 92 (-2.2%); 最好 -7.9%(N64_D4096_T8_W4) 最差 +67.4%(N1_D512_T1_W2) |
 | B6_chunk_seqlen_cap16 | 2026-10-12 22:09:41 | `causal_conv1d_update` | T_CHUNK = min(16, next_pow2(seqlen)) (decode seqlen=1 -> 1) | 有效: sum 94 -> 79 (-16.7%); 最好 -31.7%(N64_D4096_T8_W4) 最差 +28.1%(N1_D128_T1_W6) |
-| B7_chunk_seqlen_cap32 | 2026-10-12 22:10:28 | `causal_conv1d_update` | T_CHUNK = min(32, next_pow2(seqlen)) | 最优: sum 94 -> 78 (-17.1%); 最好 -31.1%(N64_D4096_T8_W4) 最差 +25.2%(N1_D128_T1_W6) |
-| B8_baked_default | 2026-10-12 22:11:36 | `causal_conv1d_update` | B7 的规则固化为工作区默认配置 (t_chunk = min(32, next_pow2(seqlen)))，重新测量 | 固化确认: sum 94 -> 78 (-16.9%)，与 B7 一致；此后 causal_conv1d 的默认配置即为该调优结果 |
-| C1_mix_cores2 | 2026-10-12 22:13:42 | `mix_fused` | grid=NUM_CORES=2*vector_cores (repo: 1x) | 无效(变慢): sum 192 -> 215 (+12.1%) |
-| C2_mix_cores4 | 2026-10-12 22:14:43 | `mix_fused` | grid=NUM_CORES=4*vector_cores | 无效(变慢): sum 192 -> 217 (+12.9%) |
-| D1_crbs_vb1024 | 2026-10-12 22:15:45 | `chain_rejection_block_sum` | vocab_block_size=1024 (repo: 2048), num_vocab_blocks doubles | 无效(明显变慢): sum 264 -> 424 (+60.7%)，且精度断言未适配（见 D5b 修复） |
-| D2_crbs_vb4096 | 2026-10-12 22:16:40 | `chain_rejection_block_sum` | vocab_block_size=4096 | 有效: sum 264 -> 191 (-27.8%)；本次精度用例因 shape 断言未适配而失败，D5b 修复后复测 |
-| D3_crbs_grid2 | 2026-10-12 22:17:43 | `chain_rejection_block_sum` | program cap = 2*vector_cores (repo: 1x) | 基本无效: sum 264 -> 258 (-2.4%) |
-| C3_mix_nomb | 2026-10-12 22:19:27 | `mix_fused` | multibuffer=False | 无效(中性): sum 192 -> 193 (+0.2%)；multibuffer 开关对本 kernel 无影响 |
-| D2b_crbs_vb4096 | 2026-10-12 22:20:30 | `chain_rejection_block_sum` | vocab_block_size=4096 (shape 断言已按 override 修正后复测) | 有效: sum 264 -> 192 (-27.3%)（仍有 1 个 ragged 断言未适配） |
-| D5_crbs_vb8192 | 2026-10-12 22:21:32 | `chain_rejection_block_sum` | vocab_block_size=8192 | 有效: sum 264 -> 170 (-35.7%)；本次精度用例因 shape 断言未适配而失败，D5b 修复后复测 |
-| D6_crbs_vb4096_grid2 | 2026-10-12 22:22:28 | `chain_rejection_block_sum` | vocab_block_size=4096 + program cap 2*cores | 有效: sum 264 -> 186 (-29.7%)；本次精度用例因 shape 断言未适配而失败，D5b 修复后复测 |
-| D5b_crbs_vb8192 | 2026-10-12 22:23:37 | `chain_rejection_block_sum` | vocab_block_size=8192 | 单算子最优(23 passed): sum 264 -> 169 (-35.9%)；但见 E1 的配对结论，未固化默认 |
+| B7_chunk_seqlen_cap32 | 2026-10-12 22:10:28 | `causal_conv1d_update` | T_CHUNK = min(32, next_pow2(seqlen)) | 有效: sum 94 -> 78 (-17.1%); 最好 -31.1%(N64_D4096_T8_W4) 最差 +25.2%(N1_D128_T1_W6) |
+| B8_baked_default | 2026-10-12 22:11:36 | `causal_conv1d_update` | B7 的规则固化为工作区默认配置 (t_chunk = min(32, next_pow2(seqlen)))，重新测量 | 有效: sum 94 -> 78 (-16.9%); 最好 -31.1%(N64_D4096_T8_W4) 最差 +27.5%(N1_D128_T1_W6) |
+| C1_mix_cores2 | 2026-10-12 22:13:42 | `mix_fused` | grid=NUM_CORES=2*vector_cores (repo: 1x) | 无效: sum 192 -> 215 (+12.1%) |
+| C2_mix_cores4 | 2026-10-12 22:14:43 | `mix_fused` | grid=NUM_CORES=4*vector_cores | 无效: sum 192 -> 217 (+12.9%) |
+| D1_crbs_vb1024 | 2026-10-12 22:15:45 | `chain_rejection_block_sum` | vocab_block_size=1024 (repo: 2048), num_vocab_blocks doubles | 无效: sum 264 -> 424 (+60.7%) |
+| D2_crbs_vb4096 | 2026-10-12 22:16:40 | `chain_rejection_block_sum` | vocab_block_size=4096 | 有效: sum 264 -> 191 (-27.8%); 最好 -33.2%(N128_Dt5_Dr4_V157184_B2048_NB77_acc1) 最差 +14.8%(N1_Dt5_Dr4_V2048_B2048_NB1_acc1) |
+| D3_crbs_grid2 | 2026-10-12 22:17:43 | `chain_rejection_block_sum` | program cap = 2*vector_cores (repo: 1x) | 有效: sum 264 -> 258 (-2.4%); 最好 -7.6%(N32_Dt5_Dr4_V157184_B2048_NB77_acc0) 最差 +6.3%(N1_Dt5_Dr4_V2048_B2048_NB1_acc1) |
+| C3_mix_nomb | 2026-10-12 22:19:27 | `mix_fused` | multibuffer=False | 无效: sum 192 -> 193 (+0.2%) |
+| D2b_crbs_vb4096 | 2026-10-12 22:20:30 | `chain_rejection_block_sum` | vocab_block_size=4096 (shape 断言已按 override 修正后复测) | 有效: sum 264 -> 192 (-27.3%); 最好 -31.9%(N128_Dt5_Dr4_V157184_B2048_NB77_acc1) 最差 +17.0%(N1_Dt5_Dr4_V2048_B2048_NB1_acc1) |
+| D5_crbs_vb8192 | 2026-10-12 22:21:32 | `chain_rejection_block_sum` | vocab_block_size=8192 | 有效: sum 264 -> 170 (-35.7%); 最好 -43.6%(N128_Dt5_Dr4_V157184_B2048_NB77_acc1) 最差 +29.4%(N1_Dt5_Dr4_V2048_B2048_NB1_acc1) |
+| D6_crbs_vb4096_grid2 | 2026-10-12 22:22:28 | `chain_rejection_block_sum` | vocab_block_size=4096 + program cap 2*cores | 有效: sum 264 -> 186 (-29.7%); 最好 -35.0%(N128_Dt5_Dr4_V157184_B2048_NB77_acc1) 最差 +18.0%(N1_Dt5_Dr4_V2048_B2048_NB1_acc1) |
+| D5b_crbs_vb8192 | 2026-10-12 22:23:37 | `chain_rejection_block_sum` | vocab_block_size=8192 | 有效: sum 264 -> 169 (-35.9%); 最好 -43.9%(N128_Dt5_Dr4_V157184_B2048_NB77_acc1) 最差 +32.5%(N1_Dt5_Dr4_V2048_B2048_NB1_acc1) |
 | D7_crbs_vb16384 | 2026-10-12 22:24:25 |  | vocab_block_size=16384 | 无效(编译失败): bishengir 'ub overflow, requires 2097152 bits while 2031616 bits available'；该次未产生新 profile，故不记录数据 |
-| D8_crbs_vb8192_grid2 | 2026-10-12 22:25:54 | `chain_rejection_block_sum` | vocab_block_size=8192 + program cap 2*cores | 单算子最优(23 passed): sum 264 -> 168 (-36.4%)；配对后整体变慢(见 E1)，未固化 |
-| E1_crs_vb8192 | 2026-10-12 22:27:41 | `chain_rejection_sample` | sample kernel vocab_block_size=8192 (与 block_sum 配对) | 无效(明显变慢): sum 82 -> 220 (+166.8%)；配对总时 D5b+E1 = 389 vs 基线 346 (+12%)，故 vocab_block_size 不固化 |
-| E2_crs_vb4096 | 2026-10-12 22:29:15 | `chain_rejection_sample` | sample kernel vocab_block_size=4096 (与 block_sum 配对) | 无效(变慢): sum 82 -> 123 (+48.6%)；配对总时 D2b+E2 = 315 vs 基线 346 (-9.2%)，净收益但改变算子契约，未固化 |
+| D8_crbs_vb8192_grid2 | 2026-10-12 22:25:54 | `chain_rejection_block_sum` | vocab_block_size=8192 + program cap 2*cores | 有效: sum 264 -> 168 (-36.4%); 最好 -43.8%(N128_Dt5_Dr4_V157184_B2048_NB77_acc1) 最差 +31.0%(N1_Dt5_Dr4_V2048_B2048_NB1_acc1) |
+| E1_crs_vb8192 | 2026-10-12 22:27:41 | `chain_rejection_sample` | sample kernel vocab_block_size=8192 (与 block_sum 配对) | 无效: sum 82 -> 220 (+166.8%) |
+| E2_crs_vb4096 | 2026-10-12 22:29:15 | `chain_rejection_sample` | sample kernel vocab_block_size=4096 (与 block_sum 配对) | 无效: sum 82 -> 123 (+48.6%) |
+| A6_simd | 2026-10-12 22:36:39 | `argmax_prob` | compile_mode=simd (backend 默认是 simd_simt_template) | 无效(完全中性): compile_mode=simd 与后端默认 simd_simt_template 生成相同代码; sum 1173 -> 1173 (-0.0%) |
+| A7_autotune_warps | 2026-10-12 22:39:14 | `argmax_prob` | autotune BLOCK_V x num_stages x num_warps{1,2,4} | 无效: autotune 扩到 num_warps{1,2,4} x num_stages{1,2} x BLOCK_V{5} 仍无收益，确认 argmax 已到可用旋钮上限; sum 1173 -> 1166 (-0.6%) |
+| F1_skv_block256 | 2026-10-12 22:40:56 | `store_kv_cache_prefix_valid` | row channel BLOCK=256 (repo: 128) | 有效: sum 36 -> 32 (-11.3%); 最好 -29.7%(B1_W4_H8_D128_C4) 最差 +2.2%(B1_W8_H8_D128_C8) |
+| F2_skv_block512 | 2026-10-12 22:41:57 | `store_kv_cache_prefix_valid` | row channel BLOCK=512 | 有效: sum 36 -> 27 (-24.6%); 最好 -47.8%(B1_W4_H8_D128_C4) 最差 +1.8%(B1_W16_H1_D128_C16) |
+| G1_arb_grid2 | 2026-10-12 22:43:03 | `add_rmsnorm_bias` | grid n_rows = 2*vector_cores (repo: 1x) | 无效: sum 45 -> 44 (-0.7%) |
+| G2_arb_col8192 | 2026-10-12 22:44:17 | `add_rmsnorm_bias` | COL_BLOCK_SIZE=8192 (repo: 2048) | 有效: sum 45 -> 43 (-4.0%); 最好 -14.5%(B32_H8192_scale1) 最差 +1.7%(B8_H1024_scale0) |
+| H1_sq_rows2 | 2026-10-12 22:45:50 | `split_qkv_rmsnorm_rope` | row-programs n_rows = 2x (repo: ceil(cores/n_cols)) | 无效(变慢): 行程序数超过物理核数只是把同一批 row 再切一遍; sum 45 -> 53 (+17.2%) |
+| I1_fr_autotune | 2026-10-12 22:48:06 | `fused_rope_qk_mqa` | autotune num_warps{1,2,4} x num_stages{1,2} | 无效(变慢): 该 kernel 每 token 一个 program，num_warps/num_stages 无可调空间; sum 30 -> 33 (+7.8%) |
+| J1_gg_rows2 | 2026-10-12 22:48:43 | `split_qkvgate_gemma_rmsnorm_rope` | row-programs n_rows = 2x | 无效(变慢); sum 8 -> 10 (+24.4%) |
+| F3_skv_block1024 | 2026-10-12 22:50:04 | `store_kv_cache_prefix_valid` | row channel BLOCK=1024 | 有效: sum 36 -> 24 (-32.2%); 最好 -54.2%(B1_W4_H8_D128_C4) 最差 +1.3%(B1_W16_H1_D128_C16) |
+| G3_arb_col16384 | 2026-10-12 22:51:05 | `add_rmsnorm_bias` | COL_BLOCK_SIZE=16384 | 有效: sum 45 -> 44 (-2.6%); 最好 -22.3%(B32_H16384_scale1) 最差 +18.7%(B32_H4096_scale1) |
+| F4_skv_block2048 | 2026-10-12 22:52:14 | `store_kv_cache_prefix_valid` | row channel BLOCK=2048 | 有效: sum 36 -> 25 (-30.7%); 最好 -53.5%(B1_W4_H8_D128_C4) 最差 +2.9%(B1_W16_H1_D128_C16) |
+| F5_skv_block4096 | 2026-10-12 22:53:11 | `store_kv_cache_prefix_valid` | row channel BLOCK=4096 | 有效: sum 36 -> 24 (-33.6%); 最好 -53.9%(B1_W4_H8_D128_C4) 最差 +4.4%(B1_W16_H1_D128_C16) |
+| F6_skv_baked_default | 2026-10-12 22:54:33 | `store_kv_cache_prefix_valid` | F5 的 BLOCK=4096 固化为工作区默认，重新测量 | 有效: sum 36 -> 24 (-32.8%); 最好 -53.3%(B1_W4_H8_D128_C4) 最差 +6.5%(B1_W16_H1_D128_C16)  << 已固化到工作区默认配置（该旋钮只改变发射分区/列块划分，数学与输出完全一致） |
+| G4_arb_baked_default | 2026-10-12 22:55:30 | `add_rmsnorm_bias` | G2 的 COL_BLOCK=8192 固化为工作区默认，重新测量 | 有效: sum 45 -> 44 (-2.0%); 最好 -14.6%(B32_H8192_scale1) 最差 +4.4%(B128_H1024_scale0)  << 已固化到工作区默认配置（该旋钮只改变发射分区/列块划分，数学与输出完全一致） |
