@@ -375,4 +375,12 @@ def test_fused_rope_qk_mqa_performance(shape):
     def fn_triton():
         fused_rope_qk_mqa_impl(query, key, cos_sin, D_ROPE, is_neox)
 
-    profiling_test(fn_triton, _DEVICE.type, _DEVICE)
+    profiling_test(
+        fn_triton,
+        _DEVICE.type,
+        _DEVICE,
+        name=(
+            f"fused_rope_qk_mqa_T{T}_Hq{Hq}_Hk{Hk}"
+            f"_D{D_HEAD}_R{D_ROPE}_neox{int(is_neox)}"
+        ),
+    )

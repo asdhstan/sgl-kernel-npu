@@ -279,4 +279,6 @@ def test_argmax_prob_performance(shape):
     def fn_triton():
         argmax_prob_impl(logits)
 
-    profiling_test(fn_triton, _DEVICE.type, _DEVICE)
+    profiling_test(
+        fn_triton, _DEVICE.type, _DEVICE, name=f"argmax_prob_B{B}_V{V}"
+    )

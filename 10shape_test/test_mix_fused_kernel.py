@@ -316,4 +316,6 @@ def test_mix_fused_performance(shape):
     def fn_triton():
         mix_fused_impl(prefix, bank, b, cw, 1e-6)
 
-    profiling_test(fn_triton, device.type, device)
+    profiling_test(
+        fn_triton, device.type, device, name=f"mix_fused_N{n}_B{b}_H{h}"
+    )

@@ -416,4 +416,10 @@ def test_store_kv_cache_prefix_valid_performance(shape):
     def fn_triton():
         store_kv_cache_prefix_valid_impl(dst_k, dst_v, src_k, src_v, loc, commit)
 
-    profiling_test(fn_triton, _DEVICE.type, _DEVICE)
+    b, w, h, d, c = shape
+    profiling_test(
+        fn_triton,
+        _DEVICE.type,
+        _DEVICE,
+        name=f"store_kv_cache_prefix_valid_B{b}_W{w}_H{h}_D{d}_C{c}",
+    )

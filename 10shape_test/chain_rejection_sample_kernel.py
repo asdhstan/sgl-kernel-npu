@@ -329,6 +329,27 @@ _PERF_SHAPES = [
 ]
 
 
+_SPIKE_STEP = 1024.0
+_SPIKE_COUNT = 8
+
+
+def _sparse_probs(batch, rows, vocab, gen):
+    """``[batch, rows, vocab]`` fp32 with a few large, exactly-representable spikes.
+
+    ``torch.Tensor.random_`` does *not* produce integers for float dtypes on NPU
+    (unlike CPU), so the values are built explicitly from ``torch.randint``.
+    """
+    probs = torch.zeros(batch, rows, vocab, dtype=torch.float32, device=_DEVICE)
+    pos = torch.randint(
+        0, vocab, (batch, rows, _SPIKE_COUNT), generator=gen, device=_DEVICE
+    )
+    vals = torch.randint(
+        1, 8, (batch, rows, _SPIKE_COUNT), generator=gen, device=_DEVICE
+    ).to(torch.float32) * _SPIKE_STEP
+    probs.scatter_(2, pos, vals)
+    return probs
+
+
 def _make_case(shape, seed):
     (
         batch_size,
@@ -345,18 +366,17 @@ def _make_case(shape, seed):
     assert pad_num_vocab_blocks == triton.next_power_of_2(num_vocab_blocks)
 
     gen = torch.Generator(device=_DEVICE).manual_seed(seed)
-    # Integer-valued probs keep every block sum and cumsum exact.  ``random_``
-    # fills the float tensor in place, avoiding a large integer temporary.
-    target_probs = torch.empty(
-        batch_size, num_draft_tokens, vocab_size, dtype=torch.float32, device=_DEVICE
-    ).random_(1, 8, generator=gen)
-    draft_probs = torch.empty(
-        batch_size,
-        num_draft_prob_rows,
-        vocab_size,
-        dtype=torch.float32,
-        device=_DEVICE,
-    ).random_(1, 8, generator=gen)
+    # Sparse spikes whose values are multiples of ``_SPIKE_STEP`` keep every
+    # block sum / cumsum exactly representable, and leave >= _SPIKE_STEP between
+    # consecutive CDF breakpoints.  That margin is many orders of magnitude above
+    # the ~ulp rounding of ``coin * total``, so the discrete sampling decision is
+    # reproducible instead of sitting on a floating-point boundary.
+    target_probs = _sparse_probs(
+        batch_size, num_draft_tokens, vocab_size, gen
+    )
+    draft_probs = _sparse_probs(
+        batch_size, num_draft_prob_rows, vocab_size, gen
+    )
 
     # When every draft is accepted the draft rows are never read, so the target
     # row may be the last draft token; otherwise it must fit draft_probs.
@@ -500,4 +520,13 @@ def test_chain_rejection_sample_performance(shape):
             vocab_block_size,
         )
 
-    profiling_test(fn_triton, _DEVICE.type, _DEVICE)
+    n, dt, dr, v, vbs, nvb, pad, acc = shape
+    profiling_test(
+        fn_triton,
+        _DEVICE.type,
+        _DEVICE,
+        name=(
+            f"chain_rejection_sample_N{n}_Dt{dt}_Dr{dr}"
+            f"_V{v}_B{vbs}_NB{nvb}_pad{pad}_acc{acc}"
+        ),
+    )

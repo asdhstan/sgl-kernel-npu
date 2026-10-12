@@ -787,4 +787,10 @@ def test_split_qkv_rmsnorm_rope_performance(shape):
             k_weight=k_weight,
         )
 
-    profiling_test(fn_triton, _DEVICE.type, _DEVICE)
+    n, q, kv, d, r = shape
+    profiling_test(
+        fn_triton,
+        _DEVICE.type,
+        _DEVICE,
+        name=f"split_qkv_rmsnorm_rope_N{n}_Q{q}_KV{kv}_D{d}_R{r}",
+    )

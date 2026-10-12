@@ -336,4 +336,13 @@ def test_chain_rejection_block_sum_performance(shape):
             target_probs, draft_probs, metadata, vocab_block_size
         )
 
-    profiling_test(fn_triton, _DEVICE.type, _DEVICE)
+    n, dt, dr, v, vbs, nvb, acc = shape
+    profiling_test(
+        fn_triton,
+        _DEVICE.type,
+        _DEVICE,
+        name=(
+            f"chain_rejection_block_sum_N{n}_Dt{dt}_Dr{dr}"
+            f"_V{v}_B{vbs}_NB{nvb}_acc{acc}"
+        ),
+    )

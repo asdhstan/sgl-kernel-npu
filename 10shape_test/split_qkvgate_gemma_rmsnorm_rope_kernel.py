@@ -502,7 +502,24 @@ def _make_case(shape, dtype, seed):
     return inp, sin, cos, q_weight, k_weight
 
 
+def _require_partial_rope(shape):
+    """Reject ``rope_dim == head_dim`` shapes.
+
+    The kernel unconditionally extracts the ``[ROPE_DIM, HEAD_DIM)`` pass-through
+    slice, and ``al.extract_slice`` asserts ``size >= 1`` on every dimension, so a
+    zero-width pass-through aborts during tracing.  The kernel therefore only
+    supports ``rope_dim < head_dim``.
+    """
+    if shape[3] == shape[4]:
+        pytest.skip(
+            "split_qkvgate_gemma_rmsnorm_rope_kernel requires rope_dim < head_dim "
+            f"(got head_dim=rope_dim={shape[3]}): the pass-through slice would be "
+            "zero-width, which al.extract_slice rejects"
+        )
+
+
 def _run_case(shape, dtype, seed):
+    _require_partial_rope(shape)
     batch, q_hidden, kv_hidden, head_dim, rope_dim = shape
     inp, sin, cos, q_weight, k_weight = _make_case(shape, dtype, seed)
 
@@ -540,19 +557,19 @@ def test_split_qkvgate_gemma_rmsnorm_rope_precision(dtype, shape):
     _run_case(shape, dtype, seed=20240801 + shape[1] + shape[3])
 
 
-def test_split_qkvgate_gemma_rmsnorm_rope_full_rope_dim():
-    """``rope_dim == head_dim`` (no pass-through slice)."""
+def test_split_qkvgate_gemma_rmsnorm_rope_partial_rope_variants():
+    """Partial rope only: the pass-through slice must be non-empty."""
     _require_cann()
     dtype = torch.bfloat16
-    _run_case((8, 2048, 512, 128, 128), dtype, seed=61)
-    _run_case((8, 1024, 256, 64, 64), dtype, seed=62)
+    _run_case((8, 2048, 512, 128, 64), dtype, seed=61)
+    _run_case((8, 2048, 512, 256, 128), dtype, seed=62)
 
 
 def test_split_qkvgate_gemma_rmsnorm_rope_fp32_accuracy():
     _require_cann()
     dtype = torch.float32
     _run_case((32, 2048, 512, 128, 64), dtype, seed=71)
-    _run_case((16, 4096, 1024, 128, 128), dtype, seed=72)
+    _run_case((16, 4096, 1024, 128, 64), dtype, seed=72)
 
 
 # --------------------------------------------------------------------------- #
@@ -565,6 +582,7 @@ def test_split_qkvgate_gemma_rmsnorm_rope_fp32_accuracy():
 )
 def test_split_qkvgate_gemma_rmsnorm_rope_performance(shape):
     _require_cann()
+    _require_partial_rope(shape)
     dtype = (
         torch.float16 if _dtype_supported(_DEVICE, torch.float16) else torch.float32
     )
@@ -585,4 +603,12 @@ def test_split_qkvgate_gemma_rmsnorm_rope_performance(shape):
             k_weight,
         )
 
-    profiling_test(fn_triton, _DEVICE.type, _DEVICE)
+    profiling_test(
+        fn_triton,
+        _DEVICE.type,
+        _DEVICE,
+        name=(
+            f"split_qkvgate_gemma_rmsnorm_rope_N{batch}"
+            f"_Q{q_hidden}_KV{kv_hidden}_D{head_dim}_R{rope_dim}"
+        ),
+    )

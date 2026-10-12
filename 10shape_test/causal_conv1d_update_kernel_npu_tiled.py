@@ -710,7 +710,7 @@ def causal_conv1d_update_ref(
 
         # STEP 3: causal convolution over history + the new tokens.
         window = torch.cat([old, x[b]], dim=0).to(torch.float16).to(torch.float32)
-        acc = torch.zeros(seqlen, dim, dtype=torch.float32)
+        acc = torch.zeros(seqlen, dim, dtype=torch.float32, device=x.device)
         for t in range(seqlen):
             acc[t] = (window[t : t + width] * w).sum(0)
         if bias is not None:
@@ -891,4 +891,10 @@ def test_causal_conv1d_update_performance(shape):
             pad_slot_id=PAD_SLOT_ID,
         )
 
-    profiling_test(fn_triton, _DEVICE.type, _DEVICE)
+    n, d, t, w = shape
+    profiling_test(
+        fn_triton,
+        _DEVICE.type,
+        _DEVICE,
+        name=f"causal_conv1d_update_N{n}_D{d}_T{t}_W{w}",
+    )
