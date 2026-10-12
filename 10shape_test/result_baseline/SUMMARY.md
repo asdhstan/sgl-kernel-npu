@@ -1,7 +1,7 @@
 # 10shape 基准性能汇总
 
-- 生成时间: 2026-10-12 23:05:48
-- git HEAD: `023679a`
+- 生成时间: 2026-10-12 23:13:52
+- git HEAD: `5530866`
 - 指标: 每个 shape 的 `avg_time(us)`，取自 profiler `kernel_details.csv` 的 `Duration(us)` 均值
 - 测量协议: baseline 为 best-of-2 次运行的最小 `avg_time`
 
@@ -70,3 +70,10 @@
 | K1_causal_blockn256 | 2026-10-12 23:01:37 | `causal_conv1d_update` | BLOCK_N=256 for all shapes (repo: 512 when dim>=512) | 无效(变慢): BLOCK_N 减半后程序数翻倍但每个 program 变窄，收益为负；当前默认(t_chunk 调优)为 78.39us，本次 103.02us (sum 94 -> 103, +9.2%) |
 | K2_causal_blockn128 | 2026-10-12 23:03:13 | `causal_conv1d_update` | BLOCK_N=128 for all shapes | 无效(明显变慢): 同 K1 更极端 (sum 94 -> 120, +27.4%) |
 | L1_mix_autotune | 2026-10-12 23:05:42 | `mix_fused` | autotune num_warps{1,2,4} x num_stages{1,2} | 无效(中性): num_warps/num_stages 对 mix_fused 无可调空间 (sum 192 -> 194, +0.8%) |
+| M1_causal_btile4 | 2026-10-12 23:07:34 | `causal_conv1d_update` | B_TILE=4 (repo heuristic: up to 8) | 有效: 相对当时的默认(t_chunk 调优后 78.4us); sum 94(原始基线) -> 71 (-24.8%) [当时工作区默认 78.4us] |
+| M2_causal_btile2 | 2026-10-12 23:08:26 | `causal_conv1d_update` | B_TILE=2 | 最优: B_TILE=2；收益集中在多序列 shape (N64_D4096_T8_W4 35.2 -> 20.7us); sum 94(原始基线) -> 64 (-32.6%) [当时工作区默认 78.4us] |
+| M3_causal_btile1 | 2026-10-12 23:09:11 | `causal_conv1d_update` | B_TILE=1 | 有效: 与 B_TILE=2 接近；batch=1 的 shape 略好，说明静态 B_TILE 循环会浪费 lane; sum 94(原始基线) -> 64 (-32.0%) [当时工作区默认 78.4us] |
+| N1_argmax_blockv64k | 2026-10-12 23:10:35 | `argmax_prob` | autotune 扩展 BLOCK_V=65536 | 无效(中性): BLOCK_V 扩到 65536 仍无收益; sum 1173(原始基线) -> 1166 (-0.6%) |
+| M4_btile_baked_min2batch | 2026-10-12 23:11:45 | `causal_conv1d_update` | B_TILE = max(1, min(2, batch)) 固化为工作区默认，重新测量 | 固化确认: B_TILE = max(1, min(2, batch)); sum 94(原始基线) -> 63 (-32.9%) << 已固化；此后 causal_conv1d 默认 = BLOCK_N(512/256) + T_CHUNK min(32,next_pow2(seqlen)) + B_TILE min(2,batch) |
+| K3_blockn256_btile2 | 2026-10-12 23:12:39 | `causal_conv1d_update` | 在新 B_TILE=min(2,batch) 默认下重扫 BLOCK_N=256 | 无效(变慢): 新默认下 BLOCK_N=256 仍不如 512; sum 94(原始基线) -> 74 (-21.0%) |
+| K4_blockn1024_btile2 | 2026-10-12 23:13:44 | `causal_conv1d_update` | BLOCK_N=1024 (更少更宽的程序) | 无效(变慢): BLOCK_N=1024; sum 94(原始基线) -> 67 (-28.6%) |
