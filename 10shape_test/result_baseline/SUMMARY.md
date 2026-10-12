@@ -1,7 +1,7 @@
 # 10shape 基准性能汇总
 
-- 生成时间: 2026-10-12 22:55:40
-- git HEAD: `c48fbfb`
+- 生成时间: 2026-10-12 23:05:48
+- git HEAD: `023679a`
 - 指标: 每个 shape 的 `avg_time(us)`，取自 profiler `kernel_details.csv` 的 `Duration(us)` 均值
 - 测量协议: baseline 为 best-of-2 次运行的最小 `avg_time`
 
@@ -67,3 +67,6 @@
 | F5_skv_block4096 | 2026-10-12 22:53:11 | `store_kv_cache_prefix_valid` | row channel BLOCK=4096 | 有效: sum 36 -> 24 (-33.6%); 最好 -53.9%(B1_W4_H8_D128_C4) 最差 +4.4%(B1_W16_H1_D128_C16) |
 | F6_skv_baked_default | 2026-10-12 22:54:33 | `store_kv_cache_prefix_valid` | F5 的 BLOCK=4096 固化为工作区默认，重新测量 | 有效: sum 36 -> 24 (-32.8%); 最好 -53.3%(B1_W4_H8_D128_C4) 最差 +6.5%(B1_W16_H1_D128_C16)  << 已固化到工作区默认配置（该旋钮只改变发射分区/列块划分，数学与输出完全一致） |
 | G4_arb_baked_default | 2026-10-12 22:55:30 | `add_rmsnorm_bias` | G2 的 COL_BLOCK=8192 固化为工作区默认，重新测量 | 有效: sum 45 -> 44 (-2.0%); 最好 -14.6%(B32_H8192_scale1) 最差 +4.4%(B128_H1024_scale0)  << 已固化到工作区默认配置（该旋钮只改变发射分区/列块划分，数学与输出完全一致） |
+| K1_causal_blockn256 | 2026-10-12 23:01:37 | `causal_conv1d_update` | BLOCK_N=256 for all shapes (repo: 512 when dim>=512) | 无效(变慢): BLOCK_N 减半后程序数翻倍但每个 program 变窄，收益为负；当前默认(t_chunk 调优)为 78.39us，本次 103.02us (sum 94 -> 103, +9.2%) |
+| K2_causal_blockn128 | 2026-10-12 23:03:13 | `causal_conv1d_update` | BLOCK_N=128 for all shapes | 无效(明显变慢): 同 K1 更极端 (sum 94 -> 120, +27.4%) |
+| L1_mix_autotune | 2026-10-12 23:05:42 | `mix_fused` | autotune num_warps{1,2,4} x num_stages{1,2} | 无效(中性): num_warps/num_stages 对 mix_fused 无可调空间 (sum 192 -> 194, +0.8%) |
