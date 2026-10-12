@@ -30,3 +30,17 @@
 
 - 本次 min/median: `N8_Q2048_KV512_D128_R64`=4.38/5.03, `N8_Q2048_KV512_D256_R128`=4.63/5.21
 
+### Z1_current_state_full_run
+
+- 时间: 2026-10-12 23:22:09
+- 方案: 全部调优默认固化后整套 full suite 复测（单次运行，非 best-of-2），用作当前工作区状态的统一口径
+- 结论: 当前工作区状态（全部调优默认已固化）统一口径复测: add_rmsnorm_bias 45->43(-2.8%); argmax_prob 1173->1174(+0.1%); causal_conv1d_update 94->64(-32.4%); chain_rejection_block_sum 264->264(+0.2%); chain_rejection_sample 82->83(+0.1%); fused_rope_qk_mqa 30->31(+0.3%); mix_fused 192->194(+0.8%); split_qkv_rmsnorm_rope 45->46(+2.2%); split_qkvgate_gemma_rmsnorm_rope 8->8(+0.7%); store_kv_cache_prefix_valid 36->24(-34.8%)
+
+| # | shape | base avg(us) | 本次 avg(us) | Δ(us) | Δ% |
+|---|-------|--------------|--------------|-------|-----|
+| | `N8_Q2048_KV512_D128_R64` | 4.00 | 3.89 | -0.11 | -2.7% |
+| | `N8_Q2048_KV512_D256_R128` | 4.20 | 4.37 | +0.17 | +3.9% |
+| | **sum** | **8.20** | **8.25** | **+0.06** | **+0.7%** |
+
+- 本次 min/median: `N8_Q2048_KV512_D128_R64`=3.04/3.82, `N8_Q2048_KV512_D256_R128`=3.39/4.51
+

@@ -1,7 +1,7 @@
 # 10shape 基准性能汇总
 
-- 生成时间: 2026-10-12 23:13:52
-- git HEAD: `5530866`
+- 生成时间: 2026-10-12 23:25:02
+- git HEAD: `89cf537`
 - 指标: 每个 shape 的 `avg_time(us)`，取自 profiler `kernel_details.csv` 的 `Duration(us)` 均值
 - 测量协议: baseline 为 best-of-2 次运行的最小 `avg_time`
 
@@ -77,3 +77,7 @@
 | M4_btile_baked_min2batch | 2026-10-12 23:11:45 | `causal_conv1d_update` | B_TILE = max(1, min(2, batch)) 固化为工作区默认，重新测量 | 固化确认: B_TILE = max(1, min(2, batch)); sum 94(原始基线) -> 63 (-32.9%) << 已固化；此后 causal_conv1d 默认 = BLOCK_N(512/256) + T_CHUNK min(32,next_pow2(seqlen)) + B_TILE min(2,batch) |
 | K3_blockn256_btile2 | 2026-10-12 23:12:39 | `causal_conv1d_update` | 在新 B_TILE=min(2,batch) 默认下重扫 BLOCK_N=256 | 无效(变慢): 新默认下 BLOCK_N=256 仍不如 512; sum 94(原始基线) -> 74 (-21.0%) |
 | K4_blockn1024_btile2 | 2026-10-12 23:13:44 | `causal_conv1d_update` | BLOCK_N=1024 (更少更宽的程序) | 无效(变慢): BLOCK_N=1024; sum 94(原始基线) -> 67 (-28.6%) |
+| Z1_current_state_full_run | 2026-10-12 23:22:09 | `mix_fused`, `causal_conv1d_update`, `store_kv_cache_prefix_valid`, `add_rmsnorm_bias`, `fused_rope_qk_mqa`, `split_qkv_rmsnorm_rope`, `split_qkvgate_gemma_rmsnorm_rope`, `argmax_prob`, `chain_rejection_block_sum`, `chain_rejection_sample` | 全部调优默认固化后整套 full suite 复测（单次运行，非 best-of-2），用作当前工作区状态的统一口径 | 当前工作区状态（全部调优默认已固化）统一口径复测: add_rmsnorm_bias 45->43(-2.8%); argmax_prob 1173->1174(+0.1%); causal_conv1d_update 94->64(-32.4%); chain_rejection_block_sum 264->264(+0.2%); chain_rejection_sample 82->83(+0.1%); fused_rope_qk_mqa 30->31(+0.3%); mix_fused 192->194(+0.8%); split_qkv_rmsnorm_rope 45->46(+2.2%); split_qkvgate_gemma_rmsnorm_rope 8->8(+0.7%); store_kv_cache_prefix_valid 36->24(-34.8%) |
+| P1_argmax_grid_div2 | 2026-10-12 23:23:18 | `argmax_prob` | grid = vector_cores/2 (更少程序，此前只向上扫过) | 无效(明显变慢): 程序数减半 -> sum 1173 -> 2149 (+83.1%) |
+| P2_argmax_grid_div4 | 2026-10-12 23:24:01 | `argmax_prob` | grid = vector_cores/4 | 无效(严重变慢): grid=cores/4 -> +248.1% |
+| Q1_mix_cores_div2 | 2026-10-12 23:24:53 | `mix_fused` | NUM_CORES = vector_cores/2 | 无效(明显变慢): NUM_CORES=cores/2 -> +79.9% |
