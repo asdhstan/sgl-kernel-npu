@@ -1,7 +1,7 @@
 # 10shape 基准性能汇总
 
-- 生成时间: 2026-10-13 10:24:24
-- git HEAD: `e25efd7`
+- 生成时间: 2026-10-13 11:18:39
+- git HEAD: `f219aab`
 - 指标: 每个 shape 的 `avg_time(us)`，取自 profiler `kernel_details.csv` 的 `Duration(us)` 均值
 - 测量协议: baseline 为 best-of-2 次运行的最小 `avg_time`
 
@@ -95,3 +95,13 @@
 | T2_autotune_default_rerun | 2026-10-13 10:18:22 | `argmax_prob` | 同一默认配置复测，用于判断 B32_V256000 的 163us 是配置选择还是干扰 | 复测正常: sum 1173 -> 1170 (-0.3%)，B32_V256000 回到 55.2us，说明 T1 是误选而非稳定问题 |
 | T3_autotune_final | 2026-10-13 10:21:13 | `argmax_prob` | 最终形态：@triton.autotune 直接写在 kernel 上、configs 显式 list（BLOCK_V 2048/4096/8192/16384 x num_stages 1/2, num_warps=1）、无环境变量无分支，默认即 autotune；32768/65536 因大 vocab 下 UB 编译失败已从列表移除 | 最终形态: sum 1173 -> 1167 (-0.6%)，无异常 shape；configs 裁到 BLOCK_V<=16384（32768/65536 在大 vocab 下必然编译失败），autotune 失败次数归零、整套用例耗时从 122s 降到 58s。注: 记录中 A1/A2/A3/A4/A5/A7/P1/P2/S1 使用的是当时临时的环境变量旋钮，现已全部删除，改为 kernel 上的 @triton.autotune 默认路径 |
 | T4_autotune_forloop_configs | 2026-10-13 10:24:18 | `argmax_prob` | configs 改为 for 循环构造（等价于原显式 list：BLOCK_V 2048/4096/8192/16384 x num_stages 1/2, num_warps=1），复测 | 确认: configs 改为 for 循环构造（生成顺序/内容与显式 list 完全一致），26 passed、autotune 失败 0 次；sum 1173 -> 1163 (-0.9%)，与 T3 一致 |
+| U1_kernel_autotune | 2026-10-13 10:49:04 | `store_kv_cache_prefix_valid` | autotune 改写到 kernel 上（显式/for 构造 configs，无环境变量无分支），默认即 autotune | 有效: BLOCK autotune, 24 passed, sum 36 -> 24 (-34.0%) |
+| U1_kernel_autotune | 2026-10-13 10:51:44 | `mix_fused` | autotune 改写到 kernel 上（显式/for 构造 configs，无环境变量无分支），默认即 autotune | 中性(略慢): num_stages autotune, 24 passed, sum 192 -> 194 (+0.9%) -> 已改回单一固定路径 |
+| U1_kernel_autotune | 2026-10-13 10:53:22 | `fused_rope_qk_mqa` | autotune 改写到 kernel 上（显式/for 构造 configs，无环境变量无分支），默认即 autotune | 无效(变慢): num_stages autotune, 32 passed, sum 30 -> 33 (+8.0%) -> 已改回单一固定路径 |
+| U1_kernel_autotune | 2026-10-13 11:00:34 | `split_qkvgate_gemma_rmsnorm_rope` | autotune 改写到 kernel 上（显式/for 构造 configs，无环境变量无分支），默认即 autotune | U1 首测: sum 8 -> 8 (-3.4%) |
+| U2_after_style_cleanup | 2026-10-13 11:08:29 | `causal_conv1d_update` | autotune 写法收尾：仅在存在真正可调 constexpr 的 kernel 上保留 autotune，其余恢复单一路径 | U2: 测量被干扰（427s；290/181us 离群、1 个 shape 无 profile），数据不可用，见 U2b 重测 |
+| U2_after_style_cleanup | 2026-10-13 11:10:35 | `add_rmsnorm_bias` | autotune 写法收尾：仅在存在真正可调 constexpr 的 kernel 上保留 autotune，其余恢复单一路径 | 有效: COL_BLOCK_SIZE x num_stages autotune, 32 passed, sum 45 -> 43 (-3.4%) |
+| U2_after_style_cleanup | 2026-10-13 11:12:05 | `fused_rope_qk_mqa` | autotune 写法收尾：仅在存在真正可调 constexpr 的 kernel 上保留 autotune，其余恢复单一路径 | 恢复固定路径后回到基线: sum 30 -> 31 (+1.5%) |
+| U2_after_style_cleanup | 2026-10-13 11:14:35 | `split_qkvgate_gemma_rmsnorm_rope` | autotune 写法收尾：仅在存在真正可调 constexpr 的 kernel 上保留 autotune，其余恢复单一路径 | 恢复固定路径: 8 passed, sum 8 -> 9 (+3.8%) |
+| U2_after_style_cleanup | 2026-10-13 11:15:42 | `mix_fused` | autotune 写法收尾：仅在存在真正可调 constexpr 的 kernel 上保留 autotune，其余恢复单一路径 | 恢复固定路径(multibuffer=True): 24 passed, sum 192 -> 194 (+1.0%) |
+| U2b_causal_clean | 2026-10-13 11:18:39 | `causal_conv1d_update` | U2 那次 causal 测量被共享卡干扰（427s，出现 290/181us 离群且 1 个 shape 无 profile），本条目为重测的干净数据 | 收尾后干净复测: sum 94 -> 64 (-32.2%)，39 passed；确认改回单一固定路径后调优收益保持不变（=round-4 的 63.2us） |
