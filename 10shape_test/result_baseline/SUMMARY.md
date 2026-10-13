@@ -1,7 +1,7 @@
 # 10shape 基准性能汇总
 
-- 生成时间: 2026-10-12 23:25:02
-- git HEAD: `89cf537`
+- 生成时间: 2026-10-13 09:36:34
+- git HEAD: `cef137a`
 - 指标: 每个 shape 的 `avg_time(us)`，取自 profiler `kernel_details.csv` 的 `Duration(us)` 均值
 - 测量协议: baseline 为 best-of-2 次运行的最小 `avg_time`
 
@@ -81,3 +81,13 @@
 | P1_argmax_grid_div2 | 2026-10-12 23:23:18 | `argmax_prob` | grid = vector_cores/2 (更少程序，此前只向上扫过) | 无效(明显变慢): 程序数减半 -> sum 1173 -> 2149 (+83.1%) |
 | P2_argmax_grid_div4 | 2026-10-12 23:24:01 | `argmax_prob` | grid = vector_cores/4 | 无效(严重变慢): grid=cores/4 -> +248.1% |
 | Q1_mix_cores_div2 | 2026-10-12 23:24:53 | `mix_fused` | NUM_CORES = vector_cores/2 | 无效(明显变慢): NUM_CORES=cores/2 -> +79.9% |
+| S1_simt_only | 2026-10-13 09:21:55 | `store_kv_cache_prefix_valid` | compile_mode="simt_only"，通过临时 pytest 插件在调用处注入（测试/算子文件均未改动） | simt-only 编译通过、24 passed（数值正确）。性能: sum 36 -> 34us (-6.3%)；该算子当前调优默认 24.2us，simt-only 更慢 |
+| S1_simt_only | 2026-10-13 09:31:57 | `split_qkvgate_gemma_rmsnorm_rope` | compile_mode="simt_only"，通过临时 pytest 插件在调用处注入（测试文件与算子源码均未改动） | simt-only 编译通过、8 passed（数值正确）。性能: sum 8 -> 35us (+325.0%) |
+| S1_simt_only | 2026-10-13 09:32:55 | `mix_fused` | compile_mode="simt_only"，通过临时 pytest 插件在调用处注入（测试文件与算子源码均未改动） | simt-only 编译通过、24 passed（数值正确）。性能: sum 192 -> 21632us (+11153.5%) |
+| S1_simt_only | 2026-10-13 09:33:49 | `argmax_prob` | compile_mode="simt_only"，通过临时 pytest 插件在调用处注入（测试文件与算子源码均未改动） | simt-only 编译通过、26 passed（数值正确）。性能: sum 1173 -> 2426us (+106.8%) |
+| S1_simt_only | 2026-10-13 09:34:50 | `chain_rejection_block_sum` | compile_mode="simt_only"，通过临时 pytest 插件在调用处注入（测试文件与算子源码均未改动） | simt-only 编译通过、23 passed（数值正确）。性能: sum 264 -> 955us (+261.7%) |
+| S1_simt_only | 2026-10-13 09:35:44 | `chain_rejection_sample` | compile_mode="simt_only"，通过临时 pytest 插件在调用处注入（测试文件与算子源码均未改动） | simt-only 编译通过、24 passed（数值正确）。性能: sum 82 -> 155us (+87.8%) |
+| S1_simt_only | 2026-10-13 09:36:23 | `causal_conv1d_update` | compile_mode="simt_only"，通过临时 pytest 插件在调用处注入（测试文件与算子源码均未改动） | simt-only 编译通过但**数值错误**：17 个精度用例失败（最大 3.9% 元素不匹配，max abs diff 14.5）。性能: sum 94 -> 1188us (+1159.6%)；该算子当前调优默认 63.2us，simt-only 更慢 |
+| S1_simt_only | 2026-10-13 09:36:23 | `add_rmsnorm_bias` | compile_mode="simt_only"，通过临时 pytest 插件在调用处注入（测试文件与算子源码均未改动） | simt-only SCALE=True 路径**编译失败**（bishengir: strides must all be 1；SIMT 不支持 quant 分支的 strided subview），该 shape 未产出数据（仅 9/10 个 shape 可比）。性能: sum 41 -> 707us (+1626.9%)；该算子当前调优默认 43.8us，simt-only 更慢 |
+| S1_simt_only | 2026-10-13 09:36:23 | `fused_rope_qk_mqa` | compile_mode="simt_only"，通过临时 pytest 插件在调用处注入（测试文件与算子源码均未改动） | simt-only 编译通过，但 D_HEAD-D_ROPE=96（非 2 次幂）时 **编译失败**（arange's range must be a power of 2），10shape 的 shape 都可编译。性能: sum 30 -> 42us (+36.4%) |
+| S1_simt_only | 2026-10-13 09:36:23 | `split_qkv_rmsnorm_rope` | compile_mode="simt_only"，通过临时 pytest 插件在调用处注入（测试文件与算子源码均未改动） | simt-only 3 个 shape **编译失败**（SIMT per-thread stack 3760B > 1152B 上限），其余 7 个可编译（仅 7/10 个 shape 可比）。性能: sum 33 -> 182us (+448.0%) |
