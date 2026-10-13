@@ -8495,5 +8495,365 @@
     }
    }
   }
+ },
+ {
+  "label": "T1_autotune_is_default",
+  "time": "2026-10-13 10:16:18",
+  "note": "\u6309\u7528\u6237\u8981\u6c42\u6539\u5199\uff1a@triton.autotune \u76f4\u63a5\u5199\u5728 kernel \u4e0a\u3001configs \u663e\u5f0f list\u3001\u65e0\u73af\u5883\u53d8\u91cf\u65e0\u5206\u652f\uff0c\u9ed8\u8ba4\u5373 autotune\uff08BLOCK_V 2048..65536 x num_stages 1/2, num_warps=1\uff09",
+  "verdict": "\u5f02\u5e38: sum 1173 -> 1273 (+8.5%)\uff0c\u4ec5 B32_V256000 \u5f02\u5e38\u5347\u5230 163.5us\uff1b\u539f\u56e0\u662f 32768/65536 \u5728\u5927 vocab \u4e0b UB \u7f16\u8bd1\u5931\u8d25\u3001\u4e14\u5171\u4eab\u5361\u4e0a autotune \u7684 benchmark \u5076\u53d1\u8bef\u9009",
+  "data": {
+   "argmax_prob": {
+    "B1024_V128000": {
+     "avg": 541.2025,
+     "min": 539.006,
+     "max": 542.631,
+     "median": 541.5174999999999,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B1024_V128000"
+    },
+    "B128_V157184": {
+     "avg": 99.09110000000001,
+     "min": 98.137,
+     "max": 101.328,
+     "median": 98.813,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B128_V157184"
+    },
+    "B1_V157184": {
+     "avg": 32.807100000000005,
+     "min": 32.689,
+     "max": 32.854,
+     "median": 32.8155,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B1_V157184"
+    },
+    "B32_V1024": {
+     "avg": 4.9729,
+     "min": 4.807,
+     "max": 5.151,
+     "median": 4.9785,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B32_V1024"
+    },
+    "B32_V157184": {
+     "avg": 36.0638,
+     "min": 35.825,
+     "max": 36.283,
+     "median": 36.0505,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B32_V157184"
+    },
+    "B32_V256000": {
+     "avg": 163.4933,
+     "min": 108.772,
+     "max": 188.492,
+     "median": 172.126,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B32_V256000"
+    },
+    "B32_V32000": {
+     "avg": 10.573699999999999,
+     "min": 10.501,
+     "max": 10.772,
+     "median": 10.5425,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B32_V32000"
+    },
+    "B32_V4096": {
+     "avg": 5.1882,
+     "min": 5.103,
+     "max": 5.299,
+     "median": 5.1739999999999995,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B32_V4096"
+    },
+    "B512_V157184": {
+     "avg": 345.0342,
+     "min": 343.719,
+     "max": 346.913,
+     "median": 345.0145,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B512_V157184"
+    },
+    "B8_V157184": {
+     "avg": 34.4176,
+     "min": 34.259,
+     "max": 34.652,
+     "median": 34.381,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B8_V157184"
+    }
+   }
+  }
+ },
+ {
+  "label": "T2_autotune_default_rerun",
+  "time": "2026-10-13 10:18:22",
+  "note": "\u540c\u4e00\u9ed8\u8ba4\u914d\u7f6e\u590d\u6d4b\uff0c\u7528\u4e8e\u5224\u65ad B32_V256000 \u7684 163us \u662f\u914d\u7f6e\u9009\u62e9\u8fd8\u662f\u5e72\u6270",
+  "verdict": "\u590d\u6d4b\u6b63\u5e38: sum 1173 -> 1170 (-0.3%)\uff0cB32_V256000 \u56de\u5230 55.2us\uff0c\u8bf4\u660e T1 \u662f\u8bef\u9009\u800c\u975e\u7a33\u5b9a\u95ee\u9898",
+  "data": {
+   "argmax_prob": {
+    "B1024_V128000": {
+     "avg": 541.3828,
+     "min": 540.093,
+     "max": 543.697,
+     "median": 540.813,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B1024_V128000"
+    },
+    "B128_V157184": {
+     "avg": 99.62429999999999,
+     "min": 98.362,
+     "max": 101.942,
+     "median": 99.532,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B128_V157184"
+    },
+    "B1_V157184": {
+     "avg": 32.7338,
+     "min": 32.607,
+     "max": 32.948,
+     "median": 32.7475,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B1_V157184"
+    },
+    "B32_V1024": {
+     "avg": 5.093,
+     "min": 4.992,
+     "max": 5.245,
+     "median": 5.080500000000001,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B32_V1024"
+    },
+    "B32_V157184": {
+     "avg": 36.250099999999996,
+     "min": 36.013,
+     "max": 36.49,
+     "median": 36.23,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B32_V157184"
+    },
+    "B32_V256000": {
+     "avg": 55.2402,
+     "min": 54.996,
+     "max": 55.463,
+     "median": 55.229,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B32_V256000"
+    },
+    "B32_V32000": {
+     "avg": 10.6417,
+     "min": 10.542,
+     "max": 10.81,
+     "median": 10.626000000000001,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B32_V32000"
+    },
+    "B32_V4096": {
+     "avg": 5.2895,
+     "min": 5.16,
+     "max": 5.495,
+     "median": 5.261,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B32_V4096"
+    },
+    "B512_V157184": {
+     "avg": 349.39660000000003,
+     "min": 347.75,
+     "max": 352.206,
+     "median": 349.06550000000004,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B512_V157184"
+    },
+    "B8_V157184": {
+     "avg": 34.1843,
+     "min": 33.96,
+     "max": 34.463,
+     "median": 34.161,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B8_V157184"
+    }
+   }
+  }
+ },
+ {
+  "label": "T3_autotune_final",
+  "time": "2026-10-13 10:21:13",
+  "note": "\u6700\u7ec8\u5f62\u6001\uff1a@triton.autotune \u76f4\u63a5\u5199\u5728 kernel \u4e0a\u3001configs \u663e\u5f0f list\uff08BLOCK_V 2048/4096/8192/16384 x num_stages 1/2, num_warps=1\uff09\u3001\u65e0\u73af\u5883\u53d8\u91cf\u65e0\u5206\u652f\uff0c\u9ed8\u8ba4\u5373 autotune\uff1b32768/65536 \u56e0\u5927 vocab \u4e0b UB \u7f16\u8bd1\u5931\u8d25\u5df2\u4ece\u5217\u8868\u79fb\u9664",
+  "verdict": "\u6700\u7ec8\u5f62\u6001: sum 1173 -> 1167 (-0.6%)\uff0c\u65e0\u5f02\u5e38 shape\uff1bconfigs \u88c1\u5230 BLOCK_V<=16384\uff0832768/65536 \u5728\u5927 vocab \u4e0b\u5fc5\u7136\u7f16\u8bd1\u5931\u8d25\uff09\uff0cautotune \u5931\u8d25\u6b21\u6570\u5f52\u96f6\u3001\u6574\u5957\u7528\u4f8b\u8017\u65f6\u4ece 122s \u964d\u5230 58s\u3002\u6ce8: \u8bb0\u5f55\u4e2d A1/A2/A3/A4/A5/A7/P1/P2/S1 \u4f7f\u7528\u7684\u662f\u5f53\u65f6\u4e34\u65f6\u7684\u73af\u5883\u53d8\u91cf\u65cb\u94ae\uff0c\u73b0\u5df2\u5168\u90e8\u5220\u9664\uff0c\u6539\u4e3a kernel \u4e0a\u7684 @triton.autotune \u9ed8\u8ba4\u8def\u5f84",
+  "data": {
+   "argmax_prob": {
+    "B1024_V128000": {
+     "avg": 540.7061,
+     "min": 539.189,
+     "max": 543.583,
+     "median": 540.4765,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B1024_V128000"
+    },
+    "B128_V157184": {
+     "avg": 99.0048,
+     "min": 98.168,
+     "max": 100.261,
+     "median": 99.1675,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B128_V157184"
+    },
+    "B1_V157184": {
+     "avg": 32.837900000000005,
+     "min": 32.75,
+     "max": 32.909,
+     "median": 32.8605,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B1_V157184"
+    },
+    "B32_V1024": {
+     "avg": 5.1021,
+     "min": 4.978,
+     "max": 5.23,
+     "median": 5.108499999999999,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B32_V1024"
+    },
+    "B32_V157184": {
+     "avg": 36.220600000000005,
+     "min": 36.027,
+     "max": 36.468,
+     "median": 36.2195,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B32_V157184"
+    },
+    "B32_V256000": {
+     "avg": 55.4399,
+     "min": 55.086,
+     "max": 55.777,
+     "median": 55.427,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B32_V256000"
+    },
+    "B32_V32000": {
+     "avg": 10.6643,
+     "min": 10.586,
+     "max": 10.777,
+     "median": 10.652000000000001,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B32_V32000"
+    },
+    "B32_V4096": {
+     "avg": 5.4951,
+     "min": 5.348,
+     "max": 5.6,
+     "median": 5.507,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B32_V4096"
+    },
+    "B512_V157184": {
+     "avg": 346.9811,
+     "min": 346.073,
+     "max": 348.45,
+     "median": 346.789,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B512_V157184"
+    },
+    "B8_V157184": {
+     "avg": 34.223699999999994,
+     "min": 33.848,
+     "max": 34.568,
+     "median": 34.2065,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B8_V157184"
+    }
+   }
+  }
  }
 ]
