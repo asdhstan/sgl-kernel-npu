@@ -8855,5 +8855,125 @@
     }
    }
   }
+ },
+ {
+  "label": "T4_autotune_forloop_configs",
+  "time": "2026-10-13 10:24:18",
+  "note": "configs \u6539\u4e3a for \u5faa\u73af\u6784\u9020\uff08\u7b49\u4ef7\u4e8e\u539f\u663e\u5f0f list\uff1aBLOCK_V 2048/4096/8192/16384 x num_stages 1/2, num_warps=1\uff09\uff0c\u590d\u6d4b",
+  "verdict": "\u786e\u8ba4: configs \u6539\u4e3a for \u5faa\u73af\u6784\u9020\uff08\u751f\u6210\u987a\u5e8f/\u5185\u5bb9\u4e0e\u663e\u5f0f list \u5b8c\u5168\u4e00\u81f4\uff09\uff0c26 passed\u3001autotune \u5931\u8d25 0 \u6b21\uff1bsum 1173 -> 1163 (-0.9%)\uff0c\u4e0e T3 \u4e00\u81f4",
+  "data": {
+   "argmax_prob": {
+    "B1024_V128000": {
+     "avg": 540.6619000000001,
+     "min": 538.67,
+     "max": 542.96,
+     "median": 540.8520000000001,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B1024_V128000"
+    },
+    "B128_V157184": {
+     "avg": 99.1267,
+     "min": 98.586,
+     "max": 99.953,
+     "median": 99.077,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B128_V157184"
+    },
+    "B1_V157184": {
+     "avg": 32.7709,
+     "min": 32.639,
+     "max": 32.851,
+     "median": 32.798,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B1_V157184"
+    },
+    "B32_V1024": {
+     "avg": 4.9588,
+     "min": 4.879,
+     "max": 5.037,
+     "median": 4.9615,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B32_V1024"
+    },
+    "B32_V157184": {
+     "avg": 36.1087,
+     "min": 35.937,
+     "max": 36.34,
+     "median": 36.1305,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B32_V157184"
+    },
+    "B32_V256000": {
+     "avg": 55.3104,
+     "min": 55.128,
+     "max": 55.513,
+     "median": 55.309,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B32_V256000"
+    },
+    "B32_V32000": {
+     "avg": 10.6356,
+     "min": 10.486,
+     "max": 10.789,
+     "median": 10.635,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B32_V32000"
+    },
+    "B32_V4096": {
+     "avg": 5.2193,
+     "min": 5.108,
+     "max": 5.362,
+     "median": 5.218,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B32_V4096"
+    },
+    "B512_V157184": {
+     "avg": 344.38710000000003,
+     "min": 342.967,
+     "max": 346.881,
+     "median": 344.19550000000004,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B512_V157184"
+    },
+    "B8_V157184": {
+     "avg": 34.1583,
+     "min": 34.029,
+     "max": 34.31,
+     "median": 34.164,
+     "n": 10,
+     "cores": [
+      "AI_VECTOR_CORE"
+     ],
+     "folder": "argmax_prob_B8_V157184"
+    }
+   }
+  }
  }
 ]
