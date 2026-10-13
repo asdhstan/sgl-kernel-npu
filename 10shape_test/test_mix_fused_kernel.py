@@ -24,8 +24,13 @@ from test_common import profiling_test
 
 
 # --------------------------------------------------------------------------- #
-# Triton kernel (copied verbatim from attn_residual.py, minus repo imports)    #
+# Triton kernel (body copied verbatim from attn_residual.py; the autotune        #
+# decorator is added here, following topk_index_kernel.py)                      #
 # --------------------------------------------------------------------------- #
+# No autotune: NUM_CORES has to equal the launch grid (the kernel derives its
+# per-program token block from it) and 0.5x/2x/4x were all measured slower, so it
+# stays at the device core count; num_stages / auto-multi-buffering is kept at
+# the repo's setting (multibuffer=True).
 @triton.jit(do_not_specialize=["N", "B"])
 def _mix_fused_kernel(
     prefix_ptr,

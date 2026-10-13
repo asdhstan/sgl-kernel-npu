@@ -26,8 +26,20 @@ from test_common import profiling_test
 
 
 # --------------------------------------------------------------------------- #
-# Triton kernel (copied verbatim from kv_cache_store.py)                       #
+# Triton kernel (body copied verbatim from kv_cache_store.py; the autotune      #
+# decorator is added here, following topk_index_kernel.py)                      #
 # --------------------------------------------------------------------------- #
+# Tunable: the channel block each K/V row is split into.  Both row dimensions are
+# constexpr, so they double as the autotune key; the grid follows BLOCK via META.
+_SKV_CONFIGS = [
+    triton.Config({"BLOCK": block}) for block in (256, 512, 1024, 2048, 4096)
+]
+
+
+@triton.autotune(
+    configs=_SKV_CONFIGS,
+    key=["K_ROW_DIM", "V_ROW_DIM", "PREFIX_WIDTH"],
+)
 @triton.jit
 def _store_kv_cache_prefix_valid_npu_kernel(
     dst_k_ptr,
@@ -197,12 +209,12 @@ def store_kv_cache_prefix_valid_impl(
     prefix_width = loc_2d.shape[1]
     k_row_dim = src_k.shape[1] * src_k.shape[2]
     v_row_dim = src_v.shape[1] * src_v.shape[2]
-    block = 128
-    grid = (
-        num_rows,
-        triton.cdiv(max(k_row_dim, v_row_dim), block),
-        2,
-    )
+    def grid(META):
+        return (
+            num_rows,
+            triton.cdiv(max(k_row_dim, v_row_dim), META["BLOCK"]),
+            2,
+        )
     _store_kv_cache_prefix_valid_npu_kernel[grid](
         dst_k,
         dst_v,
@@ -217,7 +229,6 @@ def store_kv_cache_prefix_valid_impl(
         K_ROW_DIM=k_row_dim,
         V_ROW_DIM=v_row_dim,
         PREFIX_WIDTH=prefix_width,
-        BLOCK=block,
     )
 
 

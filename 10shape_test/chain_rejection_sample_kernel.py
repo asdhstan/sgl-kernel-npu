@@ -165,6 +165,10 @@ def _dtype_supported(device, dtype):
 
 _VOCAB_BLOCK_SIZE = 2048
 
+# No autotune here: ``vocab_block_size`` must equal the block-sum kernel's block
+# granularity and it fixes the *shape* of ``block_sums``, so the candidates are
+# not interchangeable.
+
 
 # --------------------------------------------------------------------------- #
 # Device-agnostic replicas of the block-sum and sample launch wrappers          #

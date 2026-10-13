@@ -122,6 +122,10 @@ def _dtype_supported(device, dtype):
 
 _VOCAB_BLOCK_SIZE = 2048
 
+# No autotune here: ``vocab_block_size`` is the only free constexpr and it also
+# fixes ``num_vocab_blocks``, i.e. the *shape* of ``block_sums`` (and 10shape.md
+# pins it at 2048), so the candidates would not be interchangeable.
+
 
 def chain_rejection_block_sum_impl(
     target_probs: torch.Tensor,

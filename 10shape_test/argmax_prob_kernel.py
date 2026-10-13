@@ -23,8 +23,28 @@ from test_common import profiling_test
 
 
 # --------------------------------------------------------------------------- #
-# Triton kernel (copied verbatim from argmax_softmax_prob.py)                  #
+# Triton kernel (body copied verbatim from argmax_softmax_prob.py; the autotune  #
+# decorator is added here, following topk_index_kernel.py)                      #
 # --------------------------------------------------------------------------- #
+def _prune_block_v(configs, nargs, **kwargs):
+    """Never tile wider than the vocab (wastes unified buffer, overflows it)."""
+    limit = max(triton.next_power_of_2(int(nargs["V"])), 1)
+    pruned = [c for c in configs if c.kwargs["BLOCK_V"] <= limit]
+    return pruned or configs
+
+
+_ARGMAX_CONFIGS = [
+    triton.Config({"BLOCK_V": block_v}, num_warps=1, num_stages=num_stages)
+    for block_v in (2048, 4096, 8192, 16384)
+    for num_stages in (1, 2)
+]
+
+
+@triton.autotune(
+    configs=_ARGMAX_CONFIGS,
+    key=["V", "stride_b"],
+    prune_configs_by={"early_config_prune": _prune_block_v},
+)
 @triton.jit
 def _argmax_prob_kernel(
     logits_ptr,  # [B, V]
@@ -102,27 +122,20 @@ def _dtype_supported(device, dtype):
 
 
 # --------------------------------------------------------------------------- #
-# Vocab tile budget per program, in bytes (same constant as the repo wrapper). #
+# Device-agnostic replica of ``argmax_softmax_prob_fused``                     #
 # --------------------------------------------------------------------------- #
-_TILE_BYTES = 32 * 1024
+def argmax_prob_impl(logits: torch.Tensor):
+    """Device-agnostic replica of ``argmax_softmax_prob_fused``.
 
-
-def argmax_prob_impl(logits: torch.Tensor, block_v=None):
-    """Device-agnostic replica of ``argmax_softmax_prob_fused``."""
+    ``BLOCK_V`` is chosen by the kernel's autotune, so it is not passed here.
+    """
     assert logits.dim() == 2 and logits.stride(1) == 1
     B, V = logits.shape
     device = logits.device
     argmax = torch.empty(B, dtype=torch.int64, device=device)
     prob = torch.empty(B, dtype=torch.float32, device=device)
     grid = (min(_get_num_cores(device), B),)
-    if block_v is None:
-        block_v = _TILE_BYTES // logits.element_size()
-    # A tile wider than the vocab only wastes unified buffer (and overflows it
-    # once the single-iteration loop is unrolled).
-    block_v = min(block_v, triton.next_power_of_2(V))
-    _argmax_prob_kernel[grid](
-        logits, argmax, prob, B, V, logits.stride(0), BLOCK_V=block_v
-    )
+    _argmax_prob_kernel[grid](logits, argmax, prob, B, V, logits.stride(0))
     return argmax, prob
 
 
@@ -216,7 +229,12 @@ def test_argmax_prob_dtypes(dtype):
 
 
 def test_argmax_prob_small_vocab_clamps_tile():
-    """A vocab below the default tile must clamp BLOCK_V, not read past the row."""
+    """A vocab below every candidate tile must stay masked, not read past the row.
+
+    ``_prune_block_v`` drops tiles wider than the vocab but falls back to the full
+    config list when that would empty it, so this case runs with a tile much wider
+    than ``V`` and relies on the kernel's ``offs < V`` mask.
+    """
     B, V = 8, 17
     gen = torch.Generator(device=_DEVICE).manual_seed(7)
     logits = torch.randn(B, V, generator=gen, dtype=torch.float32, device=_DEVICE)

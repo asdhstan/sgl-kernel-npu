@@ -32,6 +32,15 @@ from test_common import profiling_test
 
 PAD_SLOT_ID = -1
 
+# No autotune: this kernel writes ``x`` (out == x) and ``conv_state`` *in place*,
+# so the benchmark passes the autotuner runs on the same tensors would corrupt
+# them (measured: NaN / ~99% mismatch).  Its tunables are all shape-derived and
+# were swept manually; the winning rules are applied below.
+_CAUSAL_BLOCK_N = 512  # channel tile (512 when dim >= 512, else 256)
+_CAUSAL_BLOCK_N_SMALL = 256
+_CAUSAL_B_TILE = 2  # batch tile, clamped to batch
+_CAUSAL_T_CHUNK_CAP = 32  # state-copy chunk cap
+
 
 # --------------------------------------------------------------------------- #
 # Triton kernel (copied verbatim from causal_conv1d.py)                        #
@@ -599,23 +608,17 @@ def causal_conv1d_update_impl(
         eff_state_len = width - 1
     np2_statelen = triton.next_power_of_2(eff_state_len)
 
-    # -------- tiling heuristic--------
-    CORE_HINT = 40
-    block_n = 512 if dim >= 512 else 256
-    g = triton.cdiv(dim, block_n)
-    target = 2 * CORE_HINT  # ~80
-    b_tile_raw = max(1, (batch * g + target - 1) // target)
-    if b_tile_raw <= 1:
-        b_tile = 1
-    elif b_tile_raw <= 2:
-        b_tile = 2
-    elif b_tile_raw <= 4:
-        b_tile = 4
-    else:
-        b_tile = 8
-
-    # token chunk based on block_n (32KB UB idea); conservative
-    t_chunk = 1 if block_n == 512 else 48
+    # -------- tiling (swept defaults; see the module docstring) --------
+    block_n = _CAUSAL_BLOCK_N if dim >= 512 else _CAUSAL_BLOCK_N_SMALL
+    # The repo heuristic targets ~80 programs and lands on B_TILE=8 for
+    # batch=64, which serialises 8 sequences per program; min(2, batch) is
+    # faster on every 10shape case (N64_D4096_T8_W4 51.1 -> 20.7us).
+    b_tile = max(1, min(_CAUSAL_B_TILE, batch))
+    # Only ``seqlen`` tokens are ever copied, so size the state-copy chunk from
+    # the real sequence length instead of the repo's fixed 1/48.
+    t_chunk = min(
+        _CAUSAL_T_CHUNK_CAP, triton.next_power_of_2(max(int(seqlen), 1))
+    )
 
     def grid(META):
         return (

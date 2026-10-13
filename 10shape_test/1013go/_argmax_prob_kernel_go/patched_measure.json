@@ -1,0 +1,12 @@
+{
+ "argmax_prob_B8_V157184": 24.9868,
+ "argmax_prob_B32_V4096": 4.9971000000000005,
+ "argmax_prob_B32_V32000": 8.8415,
+ "argmax_prob_B1_V157184": 23.7405,
+ "argmax_prob_B128_V157184": 70.9427,
+ "argmax_prob_B32_V1024": 4.8022,
+ "argmax_prob_B32_V256000": 40.5669,
+ "argmax_prob_B32_V157184": 27.024900000000002,
+ "argmax_prob_B1024_V128000": 403.39050000000003,
+ "argmax_prob_B512_V157184": 251.0727
+}

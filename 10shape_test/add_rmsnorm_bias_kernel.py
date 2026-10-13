@@ -35,8 +35,32 @@ _HAS_CANN = al is not None
 
 
 # --------------------------------------------------------------------------- #
-# Triton kernel (copied verbatim from add_rmsnorm_bias.py)                     #
+# Triton kernel (body copied verbatim from add_rmsnorm_bias.py; the autotune     #
+# decorator is added here, following topk_index_kernel.py)                       #
 # --------------------------------------------------------------------------- #
+# Tunable: the quant column block.  ``num_stages=1`` additionally switches auto
+# multi-buffering off, which the widest SCALE shapes need to fit in the UB.
+_ARB_CONFIGS = [
+    triton.Config({"COL_BLOCK_SIZE": col_block}, num_stages=num_stages)
+    for col_block in (2048, 4096, 8192)
+    for num_stages in (1, 2)
+]
+
+
+def _prune_col_block(configs, nargs, **kwargs):
+    """A quant column block must not be wider than the row (``BLOCK_SIZE``)."""
+    if not nargs.get("SCALE"):
+        return configs  # the quant branch, and COL_BLOCK_SIZE, are pruned away
+    limit = int(nargs["BLOCK_SIZE"])
+    pruned = [c for c in configs if c.kwargs["COL_BLOCK_SIZE"] <= limit]
+    return pruned or configs
+
+
+@triton.autotune(
+    configs=_ARB_CONFIGS,
+    key=["hidden_size", "SCALE"],
+    prune_configs_by={"early_config_prune": _prune_col_block},
+)
 @triton.jit
 def add_rmsnorm_bias_kernel(
     input_ptr,
@@ -159,12 +183,6 @@ def _require_cann():
 # --------------------------------------------------------------------------- #
 # Device-agnostic replica of ``add_rmsnorm_bias``                              #
 # --------------------------------------------------------------------------- #
-_COL_BLOCK_SIZE = 2048
-
-# ``hidden_size``/``SCALE`` combinations for which auto multi-buffering does not
-# fit in the unified buffer and must be disabled (see the retry below).
-_MULTIBUFFER_OVERRIDES = {}
-
 
 def add_rmsnorm_bias_impl(
     input: torch.Tensor,
@@ -181,7 +199,6 @@ def add_rmsnorm_bias_impl(
     batch_size = input.shape[0]
     hidden_size = input.shape[1]
     BLOCK_SIZE = triton.next_power_of_2(hidden_size)
-    COL_BLOCK_SIZE = _COL_BLOCK_SIZE
     n_rows = min(batch_size, num_vectorcore)
 
     SCALE = quant_scale is not None
@@ -197,38 +214,21 @@ def add_rmsnorm_bias_impl(
         batch_size, hidden_size, device=device, dtype=input.dtype
     )
 
-    def launch(**kwargs):
-        add_rmsnorm_bias_kernel[(n_rows,)](
-            input,
-            residual,
-            norm_weight,
-            norm_bias,
-            quant_scale,
-            quant_offset,
-            output,
-            output2,
-            batch_size,
-            hidden_size,
-            eps,
-            BLOCK_SIZE,
-            COL_BLOCK_SIZE,
-            SCALE,
-            **kwargs,
-        )
-
-    # The repo wrapper leaves auto multi-buffering at its default.  That doubles
-    # the unified-buffer footprint and overflows for the widest shapes
-    # (hidden_size=16384 with SCALE), so fall back to no multi-buffering there.
-    key = (hidden_size, SCALE)
-    multibuffer = _MULTIBUFFER_OVERRIDES.get(key)
-    kwargs = {} if multibuffer is None else {"multibuffer": multibuffer}
-    try:
-        launch(**kwargs)
-    except Exception as exc:  # pragma: no cover - toolchain capacity limit
-        if kwargs or "ub overflow" not in str(exc):
-            raise
-        _MULTIBUFFER_OVERRIDES[key] = False
-        launch(multibuffer=False)
+    add_rmsnorm_bias_kernel[(n_rows,)](
+        input,
+        residual,
+        norm_weight,
+        norm_bias,
+        quant_scale,
+        quant_offset,
+        output,
+        output2,
+        batch_size,
+        hidden_size,
+        eps,
+        BLOCK_SIZE,
+        SCALE=SCALE,
+    )
     return output, output2
 
 

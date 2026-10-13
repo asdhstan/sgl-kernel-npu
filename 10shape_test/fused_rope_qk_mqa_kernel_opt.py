@@ -28,6 +28,10 @@ from test_common import profiling_test
 # --------------------------------------------------------------------------- #
 # Triton kernel (copied verbatim from fused_rope_qk_mqa.py)                    #
 # --------------------------------------------------------------------------- #
+# No autotune: every constexpr here is semantic (shape-derived), and the only
+# backend knob left is num_stages / auto-multi-buffering -- tuning it changed
+# nothing useful and its off-variant is not reliably compilable, so the repo
+# launch configuration is kept as-is.
 @triton.jit
 def fused_rope_qk_mqa_kernel_opt(
     query_ptr,  # [T, Hq, D]

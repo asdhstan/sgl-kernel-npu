@@ -35,6 +35,10 @@ _HAS_CANN = al is not None
 # --------------------------------------------------------------------------- #
 # Triton kernel (copied verbatim from split_qkv_rmsnorm_rope.py)               #
 # --------------------------------------------------------------------------- #
+# No autotune: every constexpr here is semantic (shape-derived), and the only
+# backend knob left is num_stages / auto-multi-buffering -- tuning it changed
+# nothing useful and its off-variant is not reliably compilable, so the repo
+# launch configuration is kept as-is.
 @triton.jit
 def split_qkvgate_gemma_rmsnorm_rope_kernel(
     input_ptr,
